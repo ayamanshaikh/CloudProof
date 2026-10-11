@@ -8,6 +8,7 @@ from app.models.mission import (
     HintUsage,
     MissionFinding
 )
+from app.models.pilot import PilotParticipant
 
 __all__ = [
     "User",
@@ -19,5 +20,6 @@ __all__ = [
     "MissionAttempt",
     "Hint",
     "HintUsage",
-    "MissionFinding"
+    "MissionFinding",
+    "PilotParticipant"
 ]

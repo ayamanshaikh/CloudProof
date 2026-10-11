@@ -29,6 +29,8 @@ from app.schemas.instructor import (
     CommonMistakeItem,
     ClassDetailResponse
 )
+from app.models.pilot import PilotParticipant
+from app.schemas.pilot import AssignPilotParticipantRequest, PilotParticipantResponse
 
 router = APIRouter(prefix="/instructor", tags=["Instructor"])
 
@@ -438,4 +440,212 @@ async def export_class_grades_csv(
             "Cache-Control": "no-cache"
         }
     )
+
+
+@router.post("/classes/{class_id}/pilot/participants", response_model=PilotParticipantResponse, status_code=status.HTTP_201_CREATED)
+async def assign_or_update_pilot_participant(
+    class_id: str,
+    payload: AssignPilotParticipantRequest,
+    current_instructor: User = Depends(get_current_instructor),
+    db: AsyncSession = Depends(get_db)
+):
+    """Assign or update a student's pilot study cohort and assessment metrics."""
+    # Verify class belongs to instructor
+    stmt_class = select(Classroom).where(
+        Classroom.id == class_id,
+        Classroom.instructor_id == current_instructor.id
+    )
+    res_class = await db.execute(stmt_class)
+    if not res_class.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Class not found or does not belong to you.")
+
+    # Verify student enrolled
+    stmt_mem = select(ClassMember).where(
+        ClassMember.class_id == class_id,
+        ClassMember.student_id == payload.student_id
+    )
+    if not (await db.execute(stmt_mem)).scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Student is not enrolled in this class.")
+
+    stmt_part = select(PilotParticipant).where(
+        PilotParticipant.class_id == class_id,
+        PilotParticipant.student_id == payload.student_id
+    )
+    participant = (await db.execute(stmt_part)).scalar_one_or_none()
+
+    if not participant:
+        stmt_count = select(func.count(PilotParticipant.id)).where(PilotParticipant.class_id == class_id)
+        anon_num = (await db.scalar(stmt_count) or 0) + 1
+        anon_id = f"P-{anon_num:03d}"
+
+        participant = PilotParticipant(
+            class_id=class_id,
+            student_id=payload.student_id,
+            anonymous_id=anon_id,
+            cohort_group=payload.cohort_group,
+            pre_test_score=payload.pre_test_score,
+            post_test_score=payload.post_test_score,
+            satisfaction_score=payload.satisfaction_score,
+            feedback_notes=payload.feedback_notes
+        )
+        db.add(participant)
+    else:
+        participant.cohort_group = payload.cohort_group
+        if payload.pre_test_score is not None:
+            participant.pre_test_score = payload.pre_test_score
+        if payload.post_test_score is not None:
+            participant.post_test_score = payload.post_test_score
+        if payload.satisfaction_score is not None:
+            participant.satisfaction_score = payload.satisfaction_score
+        if payload.feedback_notes is not None:
+            participant.feedback_notes = payload.feedback_notes
+
+    await db.commit()
+    await db.refresh(participant)
+
+    gain = None
+    if participant.post_test_score is not None and participant.pre_test_score is not None:
+        gain = participant.post_test_score - participant.pre_test_score
+
+    resp = PilotParticipantResponse.model_validate(participant)
+    resp.learning_gain = gain
+    return resp
+
+
+@router.get("/classes/{class_id}/research/export")
+async def export_anonymized_research_dataset(
+    class_id: str,
+    current_instructor: User = Depends(get_current_instructor),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Export de-identified empirical research metrics for academic evaluation (RQ1-RQ4).
+    Completely omits student PII (names, emails) in compliance with academic privacy guidelines.
+    """
+    stmt_class = (
+        select(Classroom)
+        .options(
+            selectinload(Classroom.members).selectinload(ClassMember.student),
+            selectinload(Classroom.assignments).selectinload(MissionAssignment.mission),
+            selectinload(Classroom.assignments).selectinload(MissionAssignment.attempts).selectinload(MissionAttempt.hint_usages)
+        )
+        .where(
+            Classroom.id == class_id,
+            Classroom.instructor_id == current_instructor.id
+        )
+    )
+    res_class = await db.execute(stmt_class)
+    classroom = res_class.scalar_one_or_none()
+
+    if not classroom:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Class not found or does not belong to you"
+        )
+
+    # Fetch pilot participants for this class
+    stmt_parts = select(PilotParticipant).where(PilotParticipant.class_id == class_id)
+    parts_res = await db.execute(stmt_parts)
+    pilot_map = {p.student_id: p for p in parts_res.scalars().all()}
+
+    output = io.StringIO()
+    writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
+
+    # Research Header Row (Zero PII)
+    writer.writerow([
+        "Anonymous ID",
+        "Cohort Group",
+        "Mission Slug",
+        "Mission Title",
+        "Attempt Status",
+        "Execution Mode",
+        "Time to Solve (seconds)",
+        "Verification Runs",
+        "Hints Unlocked Count",
+        "Hint Penalty Deducted",
+        "Base Score",
+        "Final Score",
+        "Pre-Test Score",
+        "Post-Test Score",
+        "Learning Gain (%)",
+        "Satisfaction Score (1-5)",
+        "Completed At"
+    ])
+
+    sorted_members = sorted(classroom.members, key=lambda m: m.student_id)
+    for idx, member in enumerate(sorted_members, 1):
+        s_id = member.student_id
+        pilot_data = pilot_map.get(s_id)
+        anon_id = pilot_data.anonymous_id if pilot_data else f"P-{idx:03d}"
+        cohort = pilot_data.cohort_group if pilot_data else "experimental"
+        pre_test = f"{pilot_data.pre_test_score:.1f}" if pilot_data and pilot_data.pre_test_score is not None else "N/A"
+        post_test = f"{pilot_data.post_test_score:.1f}" if pilot_data and pilot_data.post_test_score is not None else "N/A"
+
+        learning_gain = "N/A"
+        if pilot_data and pilot_data.post_test_score is not None and pilot_data.pre_test_score is not None:
+            gain_val = pilot_data.post_test_score - pilot_data.pre_test_score
+            learning_gain = f"{gain_val:+.1f}%"
+
+        satisfaction = f"{pilot_data.satisfaction_score:.1f}" if pilot_data and pilot_data.satisfaction_score is not None else "N/A"
+
+        if not classroom.assignments:
+            writer.writerow([
+                anon_id, cohort, "none", "No Missions Assigned",
+                "NOT_STARTED", "N/A", "N/A", 0, 0, 0, 0, 0,
+                pre_test, post_test, learning_gain, satisfaction, "N/A"
+            ])
+            continue
+
+        for assignment in sorted(classroom.assignments, key=lambda a: a.mission.title):
+            mission = assignment.mission
+            attempts = [a for a in assignment.attempts if a.student_id == s_id]
+            if not attempts:
+                writer.writerow([
+                    anon_id, cohort, mission.slug, mission.title,
+                    "NOT_STARTED", "N/A", "N/A", 0, 0, 0, 0, 0,
+                    pre_test, post_test, learning_gain, satisfaction, "Not Started"
+                ])
+            else:
+                latest = max(attempts, key=lambda a: a.started_at)
+                runs_count = len(attempts)
+                hints_count = len(latest.hint_usages) if latest.hint_usages else 0
+                completed_str = latest.completed_at.isoformat() if latest.completed_at else "Incomplete"
+
+                duration_sec = "N/A"
+                if latest.completed_at and latest.started_at:
+                    diff = (latest.completed_at - latest.started_at).total_seconds()
+                    duration_sec = f"{int(max(0, diff))}"
+
+                writer.writerow([
+                    anon_id,
+                    cohort,
+                    mission.slug,
+                    mission.title,
+                    latest.status.upper(),
+                    latest.mode,
+                    duration_sec,
+                    runs_count,
+                    hints_count,
+                    latest.penalty_score,
+                    latest.base_score,
+                    latest.final_score,
+                    pre_test,
+                    post_test,
+                    learning_gain,
+                    satisfaction,
+                    completed_str
+                ])
+
+    csv_content = output.getvalue()
+    filename = f"cloudproof_research_dataset_{classroom.join_code}.csv"
+
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-cache"
+        }
+    )
+
 

@@ -19,6 +19,9 @@ from app.schemas.student import (
     CertificationBadge,
     CompletedMissionRecord
 )
+from sqlalchemy import func
+from app.models.pilot import PilotParticipant
+from app.schemas.pilot import StudentPilotSurveyRequest, PilotParticipantResponse
 
 router = APIRouter(prefix="/student", tags=["Student"])
 
@@ -317,3 +320,65 @@ async def get_student_portfolio(
         badge=badge,
         history=history_records
     )
+
+
+@router.post("/pilot/survey", response_model=PilotParticipantResponse)
+async def submit_student_pilot_survey(
+    payload: StudentPilotSurveyRequest,
+    current_student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db)
+):
+    """Submit pre/post assessment scores and user satisfaction rating for educational pilot evaluation."""
+    # Verify student is enrolled in the specified class
+    stmt_member = select(ClassMember).where(
+        ClassMember.class_id == payload.class_id,
+        ClassMember.student_id == current_student.id
+    )
+    res_member = await db.execute(stmt_member)
+    if not res_member.scalar_one_or_none():
+        raise HTTPException(status_code=403, detail="You are not enrolled in this class.")
+
+    stmt_part = select(PilotParticipant).where(
+        PilotParticipant.class_id == payload.class_id,
+        PilotParticipant.student_id == current_student.id
+    )
+    res_part = await db.execute(stmt_part)
+    participant = res_part.scalar_one_or_none()
+
+    if not participant:
+        stmt_count = select(func.count(PilotParticipant.id)).where(PilotParticipant.class_id == payload.class_id)
+        anon_num = (await db.scalar(stmt_count) or 0) + 1
+        anon_id = f"P-{anon_num:03d}"
+
+        participant = PilotParticipant(
+            class_id=payload.class_id,
+            student_id=current_student.id,
+            anonymous_id=anon_id,
+            cohort_group="experimental",
+            pre_test_score=payload.pre_test_score,
+            post_test_score=payload.post_test_score,
+            satisfaction_score=payload.satisfaction_score,
+            feedback_notes=payload.feedback_notes
+        )
+        db.add(participant)
+    else:
+        if payload.pre_test_score is not None:
+            participant.pre_test_score = payload.pre_test_score
+        if payload.post_test_score is not None:
+            participant.post_test_score = payload.post_test_score
+        if payload.satisfaction_score is not None:
+            participant.satisfaction_score = payload.satisfaction_score
+        if payload.feedback_notes is not None:
+            participant.feedback_notes = payload.feedback_notes
+
+    await db.commit()
+    await db.refresh(participant)
+
+    gain = None
+    if participant.post_test_score is not None and participant.pre_test_score is not None:
+        gain = participant.post_test_score - participant.pre_test_score
+
+    resp = PilotParticipantResponse.model_validate(participant)
+    resp.learning_gain = gain
+    return resp
+
