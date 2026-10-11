@@ -181,9 +181,25 @@ async def verify_attempt(
     past_runs = len(findings_res.scalars().all())
     run_number = past_runs + 1
 
-    # Execute deterministic rule verification using SimulationAdapter (or AWS adapter)
-    adapter = SimulationAdapter()
-    context = {"current_demo_state": attempt.current_demo_state}
+    # Execute deterministic rule verification using SimulationAdapter or AWSBoto3Adapter
+    if attempt.mode == "real_aws":
+        from app.engine.adapters.aws_boto3 import AWSBoto3Adapter
+        if not attempt.aws_account_id or not attempt.external_id:
+            raise HTTPException(
+                status_code=400,
+                detail="AWS Account ID or External ID is missing for Real AWS verification mode."
+            )
+        adapter = AWSBoto3Adapter()
+        bucket_name = (attempt.current_demo_state or {}).get("bucket_name") or f"cloudproof-invoices-{attempt.student_id[:8]}"
+        context = {
+            "bucket_name": bucket_name,
+            "aws_account_id": attempt.aws_account_id,
+            "external_id": attempt.external_id,
+            "role_name": "CloudProofVerificationRole"
+        }
+    else:
+        adapter = SimulationAdapter()
+        context = {"current_demo_state": attempt.current_demo_state}
 
     verdict = await verifier.verify(adapter, context)
 

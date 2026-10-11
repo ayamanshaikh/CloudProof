@@ -1,0 +1,86 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  CloudProof Mission 1: The Public Invoice Bucket
+  Deploys the misconfigured S3 invoice bucket and least-privilege read-only verification role.
+
+Parameters:
+  ExternalId:
+    Type: String
+    Description: Unique student verification token provided by CloudProof to prevent the Confused Deputy vulnerability.
+    MinLength: 8
+    MaxLength: 64
+
+  CloudProofAccountId:
+    Type: String
+    Description: AWS Account ID of the CloudProof verification backend.
+    Default: '123456789012'
+
+Resources:
+  # The Misconfigured S3 Bucket (Publicly Accessible)
+  InvoiceBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerPreferred
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        IgnorePublicAcls: false
+        BlockPublicPolicy: false
+        RestrictPublicBuckets: false
+      Tags:
+        - Key: Environment
+          Value: CloudProof-Lab
+        - Key: Mission
+          Value: s3-public-invoices
+
+  # Vulnerable Bucket Policy: Grants anonymous public read access
+  InvoiceBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref InvoiceBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action: 's3:GetObject'
+            Resource: !Sub 'arn:aws:s3:::${InvoiceBucket}/*'
+
+  # Cross-Account Read-Only Verification IAM Role
+  CloudProofVerificationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: CloudProofVerificationRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${CloudProofAccountId}:root'
+            Action: 'sts:AssumeRole'
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+      Policies:
+        - PolicyName: CloudProofReadOnlyAuditPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:GetBucketPublicAccessBlock'
+                  - 's3:GetBucketPolicy'
+                  - 's3:GetBucketAcl'
+                  - 's3:GetBucketLocation'
+                Resource: !Sub 'arn:aws:s3:::${InvoiceBucket}'
+
+Outputs:
+  BucketName:
+    Description: Name of the deployed invoice bucket to investigate and remediate.
+    Value: !Ref InvoiceBucket
+
+  VerificationRoleArn:
+    Description: ARN of the read-only role CloudProof will assume to verify your fix.
+    Value: !GetAtt CloudProofVerificationRole.Arn
