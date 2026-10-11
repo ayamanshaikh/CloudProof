@@ -1,0 +1,20 @@
+% CloudProof Empirical Evaluation - Camera-Ready LaTeX Table
+\begin{table*}[t]
+\centering
+\caption{Empirical Comparison between Traditional Static Instruction and CloudProof ($N=20$)}
+\label{tab:empirical_results}
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Metric} & \textbf{Control ($n=10$)} & \textbf{CloudProof ($n=10$)} & \textbf{Difference} & \textbf{$t$-statistic} & \textbf{$p$-value} & \textbf{Cohen's $d$} \\
+ & Mean (SD) & Mean (SD) & (Exp - Ctrl) & ($df=18$) & & \\
+\midrule
+Time to Solve (min) & 21.23 (1.95) & 11.38 (1.32) & -9.85 & -13.21 & < 0.0001^{***} & -5.91 \\
+Verification Attempts & 4.00 (0.82) & 1.80 (0.63) & -2.20 & -6.74 & < 0.0001^{***} & -3.01 \\
+Final Score (0--100) & 73.50 (8.18) & 94.50 (4.97) & +21.00 & 6.94 & < 0.0001^{***} & 3.10 \\
+Raw Conceptual Gain (\%) & 16.45 (1.99) & 36.80 (1.06) & +20.35 & 28.52 & < 0.0001^{***} & 12.75 \\
+Hake's Normalized Gain ($g$) & 0.33 (0.03) & 0.76 (0.08) & +0.43 & 16.29 & < 0.0001^{***} & 7.29 \\
+Student Satisfaction (1--5) & 3.24 (0.33) & 4.73 (0.19) & +1.49 & 12.47 & < 0.0001^{***} & 5.58 \\
+\bottomrule
+\multicolumn{7}{l}{\footnotesize $^{***}p < 0.0001$; $^{**}p < 0.01$; $^{*}p < 0.05$. Hake's normalized gain $g \ge 0.70$ denotes High-Gain conceptual mastery.} \\
+\end{tabular}
+\end{table*}
