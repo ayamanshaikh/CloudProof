@@ -198,6 +198,107 @@ async def seed_initial_data(session: AsyncSession):
         session.add_all(hints_2)
         await session.commit()
 
+    # Seed Mission 3: The World-Readable Database Port
+    stmt3 = select(Mission).where(Mission.slug == "vpc-exposed-database")
+    result3 = await session.execute(stmt3)
+    existing_mission_3 = result3.scalar_one_or_none()
+
+    if not existing_mission_3:
+        mission_3 = Mission(
+            slug="vpc-exposed-database",
+            title="The World-Readable Database Port",
+            description="During late-night debugging of a connection timeout issue, a DevOps engineer added an inbound Security Group rule allowing 0.0.0.0/0 on PostgreSQL port 5432. Automated bots and port scanners immediately began attacking the exposed database. Your mission is to isolate the database port, scope access strictly to private application tiers, and close public SSH management exposure.",
+            category="Network Security & VPC",
+            difficulty="Intermediate",
+            base_points=100,
+            initial_state={
+                "group_id": "sg-04a89bc21345d6e7f",
+                "group_name": "prod-aurora-postgres-sg",
+                "description": "Security group for production Aurora PostgreSQL cluster",
+                "vpc_id": "vpc-01a2b3c4d5e6f7g8h",
+                "ip_permissions": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 5432,
+                        "ToPort": 5432,
+                        "IpRanges": [
+                            {
+                                "CidrIp": "0.0.0.0/0",
+                                "Description": "Temporary dev troubleshooting rule"
+                            }
+                        ],
+                        "Ipv6Ranges": [],
+                        "PrefixListIds": [],
+                        "UserIdGroupPairs": []
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 22,
+                        "ToPort": 22,
+                        "IpRanges": [
+                            {
+                                "CidrIp": "0.0.0.0/0",
+                                "Description": "Emergency SSH bastion access"
+                            }
+                        ],
+                        "Ipv6Ranges": [],
+                        "PrefixListIds": [],
+                        "UserIdGroupPairs": []
+                    }
+                ],
+                "ip_permissions_egress": [
+                    {
+                        "IpProtocol": "-1",
+                        "IpRanges": [
+                            {"CidrIp": "0.0.0.0/0"}
+                        ],
+                        "Ipv6Ranges": [],
+                        "PrefixListIds": [],
+                        "UserIdGroupPairs": []
+                    }
+                ]
+            }
+        )
+        session.add(mission_3)
+        await session.flush()
+
+        hints_3 = [
+            Hint(
+                mission_id=mission_3.id,
+                level=1,
+                title="VPC Ingress Attack Surface",
+                content="Databases must never be exposed to the public internet (0.0.0.0/0). Review the Inbound Rules of this Security Group and examine the source CIDR blocks.",
+                token_cost=1,
+                penalty_percent=5
+            ),
+            Hint(
+                mission_id=mission_3.id,
+                level=2,
+                title="Isolating PostgreSQL Port 5432",
+                content="Notice that TCP port 5432 is mapped to 0.0.0.0/0. Remove this public rule and replace it with a rule that permits connections only from the private application subnet (e.g. 10.0.0.0/16) or an application Security Group (e.g. sg-app-backend).",
+                token_cost=2,
+                penalty_percent=10
+            ),
+            Hint(
+                mission_id=mission_3.id,
+                level=3,
+                title="Closing Management SSH Port 22",
+                content="SSH on port 22 is also open to 0.0.0.0/0. Modern AWS architectures do not expose port 22 to the world; remove the rule or restrict it to an internal management bastion.",
+                token_cost=3,
+                penalty_percent=15
+            ),
+            Hint(
+                mission_id=mission_3.id,
+                level=4,
+                title="Complete Remediated Configuration",
+                content="Inbound Rules: (1) TCP port 5432 from 10.0.0.0/16 or sg-app-backend. (2) Remove port 22 from 0.0.0.0/0. (3) Ensure no rules allow all traffic (-1) from 0.0.0.0/0.",
+                token_cost=4,
+                penalty_percent=20
+            )
+        ]
+        session.add_all(hints_3)
+        await session.commit()
+
 
 
 async def init_db():

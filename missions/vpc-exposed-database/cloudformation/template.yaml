@@ -1,0 +1,107 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  CloudProof Mission 3: The World-Readable Database Port
+  Deploys an intentionally misconfigured Database Security Group with public PostgreSQL (5432)
+  and SSH (22) ingress, alongside the read-only CloudProof verification role.
+
+Parameters:
+  ExternalId:
+    Type: String
+    Description: >
+      The unique External ID provided by CloudProof for STS AssumeRole authentication.
+    NoEcho: true
+
+Resources:
+  # Base VPC
+  MissionVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: CloudProof-Mission3-VPC
+        - Key: Environment
+          Value: CloudProof-Incident-Lab
+
+  # Application Tier Security Group (simulated backend service)
+  AppTierSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for backend web application instances
+      VpcId: !Ref MissionVPC
+      Tags:
+        - Key: Name
+          Value: cloudproof-app-backend-sg
+
+  # VULNERABLE Database Security Group
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for production Aurora PostgreSQL cluster
+      VpcId: !Ref MissionVPC
+      SecurityGroupIngress:
+        # VULNERABILITY 1: Public PostgreSQL 5432
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: 0.0.0.0/0
+          Description: Temporary dev troubleshooting rule
+        # VULNERABILITY 2: Public SSH 22
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+          Description: Emergency SSH bastion access
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: prod-aurora-postgres-sg
+        - Key: IncidentTarget
+          Value: "true"
+
+  # Read-Only Verification Role for CloudProof automated grading
+  CloudProofVerificationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: CloudProofVerificationRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+      Policies:
+        - PolicyName: CloudProofSecurityGroupReadOnlyVerification
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: AllowDescribeSecurityGroups
+                Effect: Allow
+                Action:
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeVpcs
+                  - ec2:DescribeSubnets
+                Resource: "*"
+
+Outputs:
+  SecurityGroupId:
+    Description: The Security Group ID of the vulnerable PostgreSQL database
+    Value: !Ref DatabaseSecurityGroup
+    Export:
+      Name: CloudProof-Mission3-SecurityGroupId
+
+  AppSecurityGroupId:
+    Description: The Application Tier Security Group to reference for least-privilege ingress
+    Value: !Ref AppTierSecurityGroup
+
+  VerificationRoleArn:
+    Description: The IAM Role assumed by CloudProof to verify your remediation
+    Value: !GetAtt CloudProofVerificationRole.Arn

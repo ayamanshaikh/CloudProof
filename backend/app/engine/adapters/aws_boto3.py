@@ -24,18 +24,27 @@ class AWSBoto3Adapter(BaseEnvironmentAdapter):
     async def fetch_state(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
         Expects context with:
-        - bucket_name: str
         - aws_account_id: str
         - external_id: str
+        - target resource identifier:
+            - bucket_name: str (for S3 storage missions)
+            - group_id or security_group_id: str (for VPC SG missions)
+            - target_role_name: str (for IAM missions)
         - role_name: Optional[str] (default: CloudProofVerificationRole)
         """
-        bucket_name = context.get("bucket_name")
         aws_account_id = context.get("aws_account_id")
         external_id = context.get("external_id")
         role_name = context.get("role_name", "CloudProofVerificationRole")
 
-        if not bucket_name or not aws_account_id or not external_id:
-            raise ValueError("Missing required AWS connection context: bucket_name, aws_account_id, or external_id.")
+        bucket_name = context.get("bucket_name")
+        group_id = context.get("group_id") or context.get("security_group_id")
+        target_role_name = context.get("target_role_name")
+
+        if not aws_account_id or not external_id:
+            raise ValueError("Missing required AWS connection context: aws_account_id, or external_id.")
+
+        if not bucket_name and not group_id and not target_role_name:
+            raise ValueError("Missing required AWS connection context: bucket_name, group_id, or target_role_name.")
 
         role_arn = f"arn:aws:iam::{aws_account_id}:role/{role_name}"
 
@@ -50,7 +59,66 @@ class AWSBoto3Adapter(BaseEnvironmentAdapter):
 
         creds = assume_resp["Credentials"]
 
-        # 2. Initialize temporary read-only S3 client
+        # 2. If Security Group verification
+        if group_id:
+            ec2 = boto3.client(
+                "ec2",
+                region_name=settings.AWS_REGION,
+                aws_access_key_id=creds["AccessKeyId"],
+                aws_secret_access_key=creds["SecretAccessKey"],
+                aws_session_token=creds["SessionToken"]
+            )
+            sg_resp = ec2.describe_security_groups(GroupIds=[group_id])
+            sgs = sg_resp.get("SecurityGroups", [])
+            if not sgs:
+                raise ValueError(f"Security Group '{group_id}' not found.")
+            sg = sgs[0]
+            return {
+                "group_id": sg.get("GroupId"),
+                "group_name": sg.get("GroupName"),
+                "description": sg.get("Description"),
+                "vpc_id": sg.get("VpcId"),
+                "ip_permissions": sg.get("IpPermissions", []),
+                "ip_permissions_egress": sg.get("IpPermissionsEgress", [])
+            }
+
+        # 3. If IAM Role verification
+        if target_role_name:
+            iam = boto3.client(
+                "iam",
+                region_name=settings.AWS_REGION,
+                aws_access_key_id=creds["AccessKeyId"],
+                aws_secret_access_key=creds["SecretAccessKey"],
+                aws_session_token=creds["SessionToken"]
+            )
+            role_data = iam.get_role(RoleName=target_role_name)["Role"]
+            attached = iam.list_attached_role_policies(RoleName=target_role_name).get("AttachedPolicies", [])
+            attached_arns = [p["PolicyArn"] for p in attached]
+
+            inline_policies = iam.list_role_policies(RoleName=target_role_name).get("PolicyNames", [])
+            first_inline = None
+            if inline_policies:
+                first_policy_doc = iam.get_role_policy(
+                    RoleName=target_role_name,
+                    PolicyName=inline_policies[0]
+                ).get("PolicyDocument")
+                if isinstance(first_policy_doc, str):
+                    first_inline = json.loads(first_policy_doc)
+                else:
+                    first_inline = first_policy_doc
+
+            trust_policy = role_data.get("AssumeRolePolicyDocument")
+            if isinstance(trust_policy, str):
+                trust_policy = json.loads(trust_policy)
+
+            return {
+                "role_name": target_role_name,
+                "attached_managed_policies": attached_arns,
+                "inline_policy": first_inline,
+                "trust_policy": trust_policy
+            }
+
+        # 4. Initialize temporary read-only S3 client
         s3 = boto3.client(
             "s3",
             region_name=settings.AWS_REGION,

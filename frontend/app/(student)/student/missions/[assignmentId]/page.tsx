@@ -33,7 +33,10 @@ import {
   X,
   Key,
   Plus,
-  Trash2
+  Trash2,
+  Network,
+  Globe,
+  Server
 } from "lucide-react";
 
 export default function MissionWorkbenchPage() {
@@ -64,6 +67,37 @@ export default function MissionWorkbenchPage() {
   const [inlinePolicyJson, setInlinePolicyJson] = useState("");
   const [trustPolicyJson, setTrustPolicyJson] = useState("");
   const [customPolicyInput, setCustomPolicyInput] = useState("");
+
+  // Editable VPC Security Group State (Mission 3)
+  const [sgGroupId, setSgGroupId] = useState("sg-04a89bc21345d6e7f");
+  const [sgGroupName, setSgGroupName] = useState("prod-aurora-postgres-sg");
+  const [sgVpcId, setSgVpcId] = useState("vpc-01a2b3c4d5e6f7g8h");
+  const [sgInboundRules, setSgInboundRules] = useState<{
+    protocol: string;
+    fromPort: number;
+    toPort: number;
+    cidrIp: string;
+    description: string;
+  }[]>([
+    {
+      protocol: "tcp",
+      fromPort: 5432,
+      toPort: 5432,
+      cidrIp: "0.0.0.0/0",
+      description: "Temporary dev troubleshooting rule",
+    },
+    {
+      protocol: "tcp",
+      fromPort: 22,
+      toPort: 22,
+      cidrIp: "0.0.0.0/0",
+      description: "Emergency SSH bastion access",
+    },
+  ]);
+  const [sgNewProtocol, setSgNewProtocol] = useState("tcp");
+  const [sgNewPort, setSgNewPort] = useState(5432);
+  const [sgNewCidr, setSgNewCidr] = useState("10.0.0.0/16");
+  const [sgNewDesc, setSgNewDesc] = useState("Allow backend app tier");
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -153,6 +187,25 @@ export default function MissionWorkbenchPage() {
           setTrustPolicyJson(
             state.trust_policy ? JSON.stringify(state.trust_policy, null, 2) : ""
           );
+        } else if (data.mission_slug === "vpc-exposed-database") {
+          setSgGroupId(state.group_id || "sg-04a89bc21345d6e7f");
+          setSgGroupName(state.group_name || "prod-aurora-postgres-sg");
+          setSgVpcId(state.vpc_id || "vpc-01a2b3c4d5e6f7g8h");
+          const rules: any[] = [];
+          for (const p of state.ip_permissions || []) {
+            for (const r of p.IpRanges || []) {
+              rules.push({
+                protocol: p.IpProtocol || "tcp",
+                fromPort: p.FromPort ?? 0,
+                toPort: p.ToPort ?? 0,
+                cidrIp: r.CidrIp || "",
+                description: r.Description || "",
+              });
+            }
+          }
+          if (rules.length > 0) {
+            setSgInboundRules(rules);
+          }
         } else {
           setBucketName(state.bucket_name || "cloudproof-acme-invoices-2026");
           setBpa(
@@ -223,6 +276,41 @@ export default function MissionWorkbenchPage() {
           attached_managed_policies: attachedPolicies,
           inline_policy: parsedInline,
           trust_policy: parsedTrust,
+        };
+      } else if (attempt.mission_slug === "vpc-exposed-database") {
+        const ipPermissionsMap: Record<string, any> = {};
+        for (const r of sgInboundRules) {
+          const key = `${r.protocol}-${r.fromPort}-${r.toPort}`;
+          if (!ipPermissionsMap[key]) {
+            ipPermissionsMap[key] = {
+              IpProtocol: r.protocol,
+              FromPort: r.fromPort,
+              ToPort: r.toPort,
+              IpRanges: [],
+              Ipv6Ranges: [],
+              PrefixListIds: [],
+              UserIdGroupPairs: [],
+            };
+          }
+          ipPermissionsMap[key].IpRanges.push({
+            CidrIp: r.cidrIp,
+            Description: r.description || "",
+          });
+        }
+        updatedState = {
+          group_id: sgGroupId,
+          group_name: sgGroupName,
+          vpc_id: sgVpcId,
+          ip_permissions: Object.values(ipPermissionsMap),
+          ip_permissions_egress: [
+            {
+              IpProtocol: "-1",
+              IpRanges: [{ CidrIp: "0.0.0.0/0" }],
+              Ipv6Ranges: [],
+              PrefixListIds: [],
+              UserIdGroupPairs: [],
+            },
+          ],
         };
       } else {
         let parsedPolicy = null;
@@ -332,6 +420,48 @@ export default function MissionWorkbenchPage() {
 
   const handleClearInlinePolicy = () => {
     setInlinePolicyJson("");
+  };
+
+  const handleAddSgRule = () => {
+    if (!sgNewCidr.trim()) return;
+    setSgInboundRules((prev) => [
+      ...prev,
+      {
+        protocol: sgNewProtocol,
+        fromPort: Number(sgNewPort),
+        toPort: Number(sgNewPort),
+        cidrIp: sgNewCidr.trim(),
+        description: sgNewDesc.trim() || "User configured rule",
+      },
+    ]);
+  };
+
+  const handleDeleteSgRule = (index: number) => {
+    setSgInboundRules((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleIsolatePostgres = () => {
+    setSgInboundRules((prev) => {
+      const filtered = prev.filter(
+        (r) => !(r.fromPort === 5432 && r.cidrIp === "0.0.0.0/0")
+      );
+      if (!filtered.some((r) => r.fromPort === 5432 && r.cidrIp === "10.0.0.0/16")) {
+        filtered.push({
+          protocol: "tcp",
+          fromPort: 5432,
+          toPort: 5432,
+          cidrIp: "10.0.0.0/16",
+          description: "Private application subnet ingress",
+        });
+      }
+      return filtered;
+    });
+  };
+
+  const handleRemovePublicSsh = () => {
+    setSgInboundRules((prev) =>
+      prev.filter((r) => !(r.fromPort === 22 && r.cidrIp === "0.0.0.0/0"))
+    );
   };
 
   if (authLoading || (isLoading && !attempt)) {
@@ -623,6 +753,8 @@ export default function MissionWorkbenchPage() {
                 <span>
                   {attempt?.mission_slug === "iam-overprivileged-lambda"
                     ? "Active Incident: IAM & Privilege Escalation"
+                    : attempt?.mission_slug === "vpc-exposed-database"
+                    ? "Active Incident: Network Security & VPC"
                     : "Active Incident: Storage Security"}
                 </span>
               </div>
@@ -633,6 +765,11 @@ export default function MissionWorkbenchPage() {
                     A startup backend Lambda microservice was deployed with full <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-red-600 font-bold">AdministratorAccess</code> and wildcard permissions.
                     If compromised via a dependency vulnerability or SSRF, attackers can escalate privileges, access arbitrary AWS resources, or delete production infrastructure.
                     Your mission is to detach the root admin policy, preserve CloudWatch logging, and craft a scoped least-privilege inline policy allowing only required S3 invoice processing.
+                  </>
+                ) : attempt?.mission_slug === "vpc-exposed-database" ? (
+                  <>
+                    During late-night debugging of a connection timeout, a DevOps engineer added an inbound Security Group rule allowing <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-red-600 font-bold">0.0.0.0/0</code> directly to PostgreSQL port <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-red-600 font-bold">5432</code>, alongside public SSH port <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-red-600 font-bold">22</code>.
+                    Automated port scanners immediately began attacking the database. Your mission is to isolate port 5432 strictly to the private application tier (e.g. <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-emerald-600 font-bold">10.0.0.0/16</code>) and close public SSH management exposure.
                   </>
                 ) : (
                   <>
@@ -886,6 +1023,238 @@ export default function MissionWorkbenchPage() {
                 >
                   Apply Changes
                 </button>
+              </div>
+            </div>
+          </div>
+        ) : attempt?.mission_slug === "vpc-exposed-database" ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Left Column: Inbound Rules */}
+            <div className="space-y-6">
+              <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center space-x-2">
+                    <Network className="h-5 w-5 text-indigo-600" />
+                    <h3 className="font-bold text-slate-900 text-base">Inbound Security Group Rules</h3>
+                  </div>
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                    {sgInboundRules.length} Rule(s)
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+                  Defines allowable incoming network traffic into the PostgreSQL cluster. Database ports must be strictly isolated from the public internet (<code>0.0.0.0/0</code>).
+                </p>
+
+                {/* Quick Remediation Toolbar */}
+                <div className="mb-4 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                  <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
+                    Quick Remediation Actions:
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={handleIsolatePostgres}
+                      className="px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold hover:bg-emerald-100 transition flex items-center space-x-1.5"
+                    >
+                      <ShieldCheck className="h-3.5 w-3.5" />
+                      <span>Isolate Port 5432 to 10.0.0.0/16</span>
+                    </button>
+                    {sgInboundRules.some((r) => r.fromPort === 22 && r.cidrIp === "0.0.0.0/0") && (
+                      <button
+                        type="button"
+                        onClick={handleRemovePublicSsh}
+                        className="px-2.5 py-1.5 rounded-lg bg-red-50 text-red-700 border border-red-200 text-xs font-semibold hover:bg-red-100 transition flex items-center space-x-1.5"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        <span>Remove Public SSH (Port 22)</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Rules List */}
+                <div className="space-y-3 mb-6">
+                  {sgInboundRules.length === 0 ? (
+                    <div className="p-4 border border-dashed border-slate-200 rounded-lg text-center text-xs text-slate-400">
+                      No inbound rules defined. Database connections will be blocked.
+                    </div>
+                  ) : (
+                    sgInboundRules.map((r, idx) => {
+                      const isPublic = r.cidrIp === "0.0.0.0/0" || r.cidrIp === "::/0";
+                      const isDangerousPort = r.fromPort === 5432 || r.fromPort === 22;
+                      const isPrivateCidr = r.cidrIp.startsWith("10.") || r.cidrIp.startsWith("172.16.") || r.cidrIp.startsWith("192.168.");
+
+                      return (
+                        <div
+                          key={idx}
+                          className={`p-3.5 rounded-xl border flex items-center justify-between transition ${
+                            isPublic && isDangerousPort
+                              ? "border-red-200 bg-red-50/50"
+                              : isPrivateCidr
+                              ? "border-emerald-200 bg-emerald-50/40"
+                              : "border-slate-200 bg-slate-50"
+                          }`}
+                        >
+                          <div className="flex-1 pr-3 min-w-0">
+                            <div className="flex items-center space-x-2">
+                              <span className="font-mono text-xs font-bold text-slate-900">
+                                {r.protocol.toUpperCase()} {r.fromPort === r.toPort ? r.fromPort : `${r.fromPort}-${r.toPort}`}
+                              </span>
+                              {isPublic && isDangerousPort && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 shrink-0">
+                                  CRITICAL RISK: PUBLIC
+                                </span>
+                              )}
+                              {isPrivateCidr && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 shrink-0">
+                                  PRIVATE SCOPED
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-2 mt-1">
+                              <span className="text-xs font-mono font-medium text-slate-700">
+                                Source: {r.cidrIp}
+                              </span>
+                              {r.description && (
+                                <span className="text-xs text-slate-400 truncate">
+                                  — {r.description}
+                                </span>
+                              )}
+                            </div>
+                            {isPublic && isDangerousPort && (
+                              <p className="text-[11px] text-red-600 mt-1">
+                                Exposed to global internet (0.0.0.0/0). Attackers can scan and attempt credential attacks.
+                              </p>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSgRule(idx)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-white rounded-lg border border-transparent hover:border-red-200 transition shrink-0"
+                            title="Delete Rule"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Add Rule Sub-Panel */}
+                <div className="pt-4 border-t border-slate-100">
+                  <span className="text-xs font-bold text-slate-800 block mb-3">Add Inbound Rule:</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                    <div>
+                      <label className="text-[11px] font-medium text-slate-500 block mb-1">Port</label>
+                      <input
+                        type="number"
+                        value={sgNewPort}
+                        onChange={(e) => setSgNewPort(Number(e.target.value))}
+                        className="w-full px-2.5 py-1.5 text-xs font-mono border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-medium text-slate-500 block mb-1">Source CIDR</label>
+                      <input
+                        type="text"
+                        value={sgNewCidr}
+                        onChange={(e) => setSgNewCidr(e.target.value)}
+                        placeholder="10.0.0.0/16"
+                        className="w-full px-2.5 py-1.5 text-xs font-mono border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-medium text-slate-500 block mb-1">Description</label>
+                      <input
+                        type="text"
+                        value={sgNewDesc}
+                        onChange={(e) => setSgNewDesc(e.target.value)}
+                        placeholder="Purpose"
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddSgRule}
+                    className="w-full py-2 bg-slate-900 text-white rounded-lg text-xs font-semibold hover:bg-slate-800 transition flex items-center justify-center space-x-1.5"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Add Inbound Rule</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Security Group Context & Outbound Egress */}
+            <div className="space-y-6">
+              {/* Context & Well-Architected Security Card */}
+              <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+                <div className="flex items-center space-x-2 mb-4">
+                  <Server className="h-5 w-5 text-indigo-600" />
+                  <h3 className="font-bold text-slate-900 text-base">VPC Resource Metadata</h3>
+                </div>
+
+                <div className="space-y-3 text-xs mb-5">
+                  <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                    <span className="text-slate-500 font-medium">Security Group ID:</span>
+                    <span className="font-mono font-bold text-slate-900">{sgGroupId}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                    <span className="text-slate-500 font-medium">Group Name:</span>
+                    <span className="font-mono font-bold text-slate-900">{sgGroupName}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                    <span className="text-slate-500 font-medium">VPC ID:</span>
+                    <span className="font-mono font-bold text-slate-900">{sgVpcId}</span>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl border border-indigo-100 bg-indigo-50/40">
+                  <span className="text-xs font-bold text-indigo-900 block mb-1">
+                    AWS Well-Architected Security Guidance:
+                  </span>
+                  <p className="text-xs text-indigo-800 leading-relaxed">
+                    Under AWS CIS Foundation benchmarks and the Well-Architected Security Pillar, database instances must never be assigned public IP addresses or receive unauthenticated traffic from <code>0.0.0.0/0</code>. Administrative access must use AWS SSM Session Manager rather than exposed port 22.
+                  </p>
+                </div>
+              </div>
+
+              {/* Outbound Egress Box */}
+              <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center space-x-2 mb-3">
+                    <Globe className="h-5 w-5 text-indigo-600" />
+                    <h3 className="font-bold text-slate-900 text-base">Outbound Rules (Egress)</h3>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+                    By default, AWS Security Groups permit all outbound traffic to allow patching, external API calls, and replica synchronization.
+                  </p>
+
+                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 font-mono text-xs text-slate-700 flex items-center justify-between">
+                    <div>
+                      <span className="font-bold">ALL Protocols / All Ports</span>
+                      <span className="block text-[11px] text-slate-400 mt-0.5">Destination: 0.0.0.0/0</span>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
+                      DEFAULT
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-xs text-slate-500">
+                    Target SG: <strong className="font-mono text-slate-700">{sgGroupId}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleSaveState}
+                    className="text-xs font-semibold text-indigo-600 hover:underline"
+                  >
+                    Apply Changes
+                  </button>
+                </div>
               </div>
             </div>
           </div>
