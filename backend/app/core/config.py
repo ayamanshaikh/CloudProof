@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
+    # Rate Limiting
+    RATE_LIMIT_ENABLED: bool = True
+    AUTH_RATE_LIMIT: int = 10
+    VERIFY_RATE_LIMIT: int = 20
+    RATE_LIMIT_WINDOW_SECONDS: int = 60
+
     # AI
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-3.8-flash"
