@@ -1,0 +1,549 @@
+"use client";
+
+import React, { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
+import {
+  api,
+  AttemptStateResponse,
+  VerifyAttemptResponse,
+  RuleResultItem
+} from "@/lib/api";
+import {
+  ShieldCheck,
+  ArrowLeft,
+  Play,
+  RotateCcw,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Lock,
+  FileCode,
+  Sliders,
+  Check,
+  Save,
+  Clock,
+  Sparkles
+} from "lucide-react";
+
+export default function MissionWorkbenchPage() {
+  const { assignmentId } = useParams<{ assignmentId: string }>();
+  const { user, isLoading: authLoading } = useAuth();
+  const router = useRouter();
+
+  const [attempt, setAttempt] = useState<AttemptStateResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Editable Demo Configuration State
+  const [bucketName, setBucketName] = useState("");
+  const [bpa, setBpa] = useState({
+    BlockPublicAcls: false,
+    IgnorePublicAcls: false,
+    BlockPublicPolicy: false,
+    RestrictPublicBuckets: false,
+  });
+  const [bucketAcl, setBucketAcl] = useState("public-read");
+  const [bucketPolicyJson, setBucketPolicyJson] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Verification State
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verdictData, setVerdictData] = useState<VerifyAttemptResponse | null>(null);
+  const [showVerdictModal, setShowVerdictModal] = useState(false);
+
+  const initAttempt = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await api.startMission(assignmentId, { mode: "demo" });
+      setAttempt(data);
+
+      // Hydrate editor state from attempt's demo state
+      if (data.current_demo_state) {
+        const state = data.current_demo_state;
+        setBucketName(state.bucket_name || "cloudproof-acme-invoices-2026");
+        setBpa(
+          state.public_access_block || {
+            BlockPublicAcls: false,
+            IgnorePublicAcls: false,
+            BlockPublicPolicy: false,
+            RestrictPublicBuckets: false,
+          }
+        );
+        setBucketAcl(state.bucket_acl || "public-read");
+        setBucketPolicyJson(
+          state.bucket_policy
+            ? JSON.stringify(state.bucket_policy, null, 2)
+            : ""
+        );
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to initialize mission attempt.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [assignmentId]);
+
+  useEffect(() => {
+    if (!authLoading && (!user || user.role !== "student")) {
+      router.push("/login");
+      return;
+    }
+
+    if (user && user.role === "student" && assignmentId) {
+      initAttempt();
+    }
+  }, [user, authLoading, assignmentId, router, initAttempt]);
+
+  const handleSaveState = async () => {
+    if (!attempt) return;
+
+    let parsedPolicy = null;
+    if (bucketPolicyJson.trim()) {
+      try {
+        parsedPolicy = JSON.parse(bucketPolicyJson);
+      } catch {
+        setError("Invalid JSON format in Bucket Policy.");
+        return;
+      }
+    }
+
+    try {
+      setIsSaving(true);
+      setError(null);
+      const updatedState = {
+        bucket_name: bucketName,
+        public_access_block: bpa,
+        bucket_acl: bucketAcl,
+        bucket_policy: parsedPolicy,
+      };
+
+      await api.updateDemoState(attempt.attempt_id, updatedState);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2000);
+    } catch (err: any) {
+      setError(err.message || "Failed to save configuration state.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleVerify = async () => {
+    if (!attempt) return;
+
+    // Auto-save any pending changes first
+    await handleSaveState();
+
+    try {
+      setIsVerifying(true);
+      setError(null);
+      const res = await api.verifyAttempt(attempt.attempt_id);
+      setVerdictData(res);
+      setShowVerdictModal(true);
+
+      // Refresh attempt state
+      setAttempt((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: res.status,
+              final_score: res.final_score,
+            }
+          : null
+      );
+    } catch (err: any) {
+      setError(err.message || "Verification failed to execute.");
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleClearPolicy = () => {
+    setBucketPolicyJson("");
+  };
+
+  const handleEnableAllBpa = () => {
+    setBpa({
+      BlockPublicAcls: true,
+      IgnorePublicAcls: true,
+      BlockPublicPolicy: true,
+      RestrictPublicBuckets: true,
+    });
+  };
+
+  if (authLoading || (isLoading && !attempt)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center space-y-3">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-sm font-medium text-slate-600">Initializing cloud incident environment...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      {/* Top Navigation */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 px-6 py-3.5">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <Link
+              href="/student/dashboard"
+              className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition"
+              title="Return to Dashboard"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+            <div className="bg-blue-600 text-white p-1.5 rounded-lg">
+              <ShieldCheck className="h-6 w-6" />
+            </div>
+            <div>
+              <span className="font-bold text-lg text-slate-900 tracking-tight">CloudProof</span>
+              <span className="ml-2 text-xs font-semibold px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full">
+                Mission Workbench
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-3">
+            <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>Simulation Mode (Zero Cost)</span>
+            </div>
+
+            <button
+              onClick={handleSaveState}
+              disabled={isSaving}
+              className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold shadow-sm transition flex items-center space-x-1.5 disabled:opacity-50"
+            >
+              {saveSuccess ? (
+                <>
+                  <Check className="h-3.5 w-3.5 text-emerald-600" />
+                  <span className="text-emerald-700">Saved!</span>
+                </>
+              ) : (
+                <>
+                  <Save className="h-3.5 w-3.5" />
+                  <span>{isSaving ? "Saving..." : "Save State"}</span>
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={handleVerify}
+              disabled={isVerifying}
+              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-md transition flex items-center space-x-2 disabled:opacity-50"
+            >
+              {isVerifying ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Verifying Rules...</span>
+                </>
+              ) : (
+                <>
+                  <Play className="h-3.5 w-3.5 fill-current" />
+                  <span>Verify Fix</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Workbench Body */}
+      <main className="max-w-7xl mx-auto w-full px-6 py-8 flex-1">
+        {/* Incident Briefing Banner */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-8 shadow-sm">
+          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+            <div>
+              <div className="inline-flex items-center space-x-2 bg-red-50 text-red-700 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider mb-2">
+                <span>Active Incident: Storage Security</span>
+              </div>
+              <h1 className="text-2xl font-bold text-slate-900">{attempt?.mission_title}</h1>
+              <p className="text-sm text-slate-600 mt-2 max-w-3xl leading-relaxed">
+                A startup accidentally exposed confidential customer PDF invoices through an Amazon S3 bucket.
+                Anyone on the public internet can download invoices without authentication. Your mission is to
+                investigate the S3 configuration below, identify why the bucket is exposed, and remediate the vulnerability.
+              </p>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 min-w-[200px] shrink-0 text-right">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                Status
+              </span>
+              <span
+                className={`text-sm font-bold uppercase block mt-0.5 ${
+                  attempt?.status === "passed"
+                    ? "text-emerald-600"
+                    : attempt?.status === "failed"
+                    ? "text-red-600"
+                    : "text-amber-600"
+                }`}
+              >
+                {attempt?.status === "passed"
+                  ? "VERIFIED & PASSED"
+                  : attempt?.status === "failed"
+                  ? "ATTEMPT FAILED"
+                  : "IN PROGRESS"}
+              </span>
+              <span className="text-xs text-slate-500 block mt-1">
+                Score: <strong>{attempt?.final_score || 0} / 100</strong>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center space-x-3 text-sm text-red-700">
+            <AlertTriangle className="h-5 w-5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Configuration Inspector Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Left Column: S3 Block Public Access & ACL */}
+          <div className="space-y-6">
+            {/* Block Public Access Box */}
+            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-2">
+                  <Sliders className="h-5 w-5 text-blue-600" />
+                  <h3 className="font-bold text-slate-900 text-base">S3 Block Public Access (BPA)</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleEnableAllBpa}
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-800"
+                >
+                  Enable All (Recommended)
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {[
+                  {
+                    key: "BlockPublicAcls",
+                    label: "Block public access to buckets and objects granted through new public ACLs",
+                    desc: "Blocks new public ACLs and uploading objects with public ACLs.",
+                  },
+                  {
+                    key: "IgnorePublicAcls",
+                    label: "Ignore all public ACLs on this bucket and any objects that it contains",
+                    desc: "Causes AWS S3 to ignore all public ACLs on this bucket and its objects.",
+                  },
+                  {
+                    key: "BlockPublicPolicy",
+                    label: "Block public access to buckets and objects granted through any public bucket policy",
+                    desc: "Rejects bucket policies that allow public, unauthenticated access.",
+                  },
+                  {
+                    key: "RestrictPublicBuckets",
+                    label: "Restrict public access to this bucket only to AWS service principals and authorized users",
+                    desc: "Restricts bucket access to AWS service principals and authorized users in the bucket owner account.",
+                  },
+                ].map((item) => {
+                  const isChecked = (bpa as any)[item.key];
+                  return (
+                    <label
+                      key={item.key}
+                      className="flex items-start justify-between p-3 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer transition"
+                    >
+                      <div className="pr-4">
+                        <span className="text-xs font-bold text-slate-900 block font-mono">
+                          {item.key}
+                        </span>
+                        <span className="text-xs text-slate-500 block mt-0.5">{item.desc}</span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) =>
+                          setBpa((prev) => ({ ...prev, [item.key]: e.target.checked }))
+                        }
+                        className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Canned ACL Box */}
+            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+              <div className="flex items-center space-x-2 mb-3">
+                <Lock className="h-5 w-5 text-blue-600" />
+                <h3 className="font-bold text-slate-900 text-base">Bucket Canned ACL</h3>
+              </div>
+              <p className="text-xs text-slate-500 mb-4">
+                Access Control Lists define basic read/write grants on the bucket resource.
+              </p>
+
+              <select
+                value={bucketAcl}
+                onChange={(e) => setBucketAcl(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="private">private (Recommended - Bucket owner has full control)</option>
+                <option value="public-read">public-read (VULNERABLE - Anonymous users can read)</option>
+                <option value="public-read-write">public-read-write (DANGEROUS - Global write access)</option>
+                <option value="authenticated-read">authenticated-read (All AWS accounts can read)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Right Column: Bucket Policy JSON Editor */}
+          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center space-x-2">
+                  <FileCode className="h-5 w-5 text-blue-600" />
+                  <h3 className="font-bold text-slate-900 text-base">Bucket Policy (JSON)</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClearPolicy}
+                  className="text-xs font-semibold text-red-600 hover:text-red-800"
+                >
+                  Clear Policy
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 mb-3">
+                An IAM resource policy attached to the bucket. Inspect statements granting anonymous Principal access.
+              </p>
+
+              <textarea
+                rows={16}
+                value={bucketPolicyJson}
+                onChange={(e) => setBucketPolicyJson(e.target.value)}
+                placeholder="No bucket policy attached (or paste JSON policy here)..."
+                className="w-full p-3 font-mono text-xs border border-slate-300 rounded-lg bg-slate-900 text-emerald-400 focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
+              />
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
+              <span className="text-xs text-slate-500">
+                Target Resource: <strong className="font-mono text-slate-700">arn:aws:s3:::{bucketName}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={handleSaveState}
+                className="text-xs font-semibold text-blue-600 hover:underline"
+              >
+                Apply Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {/* Verification Verdict Modal */}
+      {showVerdictModal && verdictData && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
+              <div className="flex items-center space-x-3">
+                {verdictData.verdict.status === "PASS" ? (
+                  <div className="bg-emerald-50 text-emerald-600 p-2.5 rounded-full">
+                    <CheckCircle2 className="h-7 w-7" />
+                  </div>
+                ) : (
+                  <div className="bg-red-50 text-red-600 p-2.5 rounded-full">
+                    <XCircle className="h-7 w-7" />
+                  </div>
+                )}
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900">
+                    {verdictData.verdict.status === "PASS"
+                      ? "MISSION COMPLETED!"
+                      : "VERIFICATION FAILED"}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Deterministic checks completed in {verdictData.verdict.execution_time_ms} ms
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-right">
+                <span className="text-2xl font-extrabold text-slate-900">
+                  {verdictData.verdict.base_points_earned} / {verdictData.verdict.max_points_possible}
+                </span>
+                <span className="block text-[10px] uppercase font-bold text-slate-400">
+                  Points Earned
+                </span>
+              </div>
+            </div>
+
+            {/* Rules Breakdown List */}
+            <div className="space-y-3 mb-6">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Automated Verification Rules ({verdictData.verdict.passed_rules} / {verdictData.verdict.total_rules} Passed)
+              </h4>
+
+              {verdictData.verdict.rule_results.map((rule: RuleResultItem) => (
+                <div
+                  key={rule.rule_id}
+                  className={`p-3.5 rounded-xl border flex items-start space-x-3 transition ${
+                    rule.status === "PASS"
+                      ? "border-emerald-200 bg-emerald-50/40"
+                      : "border-red-200 bg-red-50/40"
+                  }`}
+                >
+                  <div className="mt-0.5 shrink-0">
+                    {rule.status === "PASS" ? (
+                      <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                    ) : (
+                      <XCircle className="h-5 w-5 text-red-600" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-xs font-bold text-slate-900">
+                        {rule.rule_id}
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          rule.status === "PASS"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-red-100 text-red-800"
+                        }`}
+                      >
+                        {rule.points_earned} / {rule.max_points} pts
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-700 mt-0.5 font-medium">{rule.name}</p>
+                    <p className="text-xs text-slate-500 mt-1">{rule.evidence}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Modal Actions */}
+            <div className="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => setShowVerdictModal(false)}
+                className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 font-medium"
+              >
+                Close & Keep Editing
+              </button>
+              {verdictData.verdict.status === "PASS" && (
+                <Link
+                  href="/student/dashboard"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold shadow-md transition"
+                >
+                  Return to Dashboard
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
