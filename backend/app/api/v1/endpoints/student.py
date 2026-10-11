@@ -1,3 +1,4 @@
+import hashlib
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -12,7 +13,11 @@ from app.schemas.student import (
     StudentDashboardResponse,
     EnrolledClassSummary,
     AssignedMissionItem,
-    StudentStats
+    StudentStats,
+    StudentPortfolioResponse,
+    CompetencyScore,
+    CertificationBadge,
+    CompletedMissionRecord
 )
 
 router = APIRouter(prefix="/student", tags=["Student"])
@@ -183,4 +188,132 @@ async def get_student_dashboard(
         ),
         enrolled_classes=enrolled_classes_list,
         assigned_missions=assigned_missions_list
+    )
+
+
+@router.get("/portfolio", response_model=StudentPortfolioResponse)
+async def get_student_portfolio(
+    current_student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Retrieve the student's verified skills portfolio, competencies radar,
+    and completion certification badge.
+    """
+    # 1. Fetch all passed attempts for this student
+    stmt = (
+        select(MissionAttempt)
+        .options(
+            selectinload(MissionAttempt.assignment).selectinload(MissionAssignment.mission)
+        )
+        .where(
+            MissionAttempt.student_id == current_student.id,
+            MissionAttempt.status == "passed"
+        )
+        .order_by(MissionAttempt.completed_at.desc())
+    )
+    res = await db.execute(stmt)
+    passed_attempts = res.scalars().all()
+
+    # Track best score per mission slug
+    best_by_slug: dict[str, MissionAttempt] = {}
+    history_records: list[CompletedMissionRecord] = []
+    for att in passed_attempts:
+        slug = att.assignment.mission.slug
+        if slug not in best_by_slug or att.final_score > best_by_slug[slug].final_score:
+            best_by_slug[slug] = att
+
+        history_records.append(
+            CompletedMissionRecord(
+                mission_title=att.assignment.mission.title,
+                slug=slug,
+                category=att.assignment.mission.category,
+                final_score=att.final_score,
+                base_score=att.base_score,
+                penalty_score=att.penalty_score,
+                mode=att.mode,
+                completed_at=att.completed_at,
+                attempt_id=att.id
+            )
+        )
+
+    # 2. Compute 3 core competencies
+    # Domain 1: Storage Security (s3-public-invoices)
+    s3_att = best_by_slug.get("s3-public-invoices")
+    s3_score = s3_att.final_score if s3_att else 0
+    s3_level = "Mastered" if s3_score >= 90 else "Proficient" if s3_score > 0 else "Unattempted"
+
+    # Domain 2: IAM & Privilege Escalation (iam-overprivileged-lambda)
+    iam_att = best_by_slug.get("iam-overprivileged-lambda")
+    iam_score = iam_att.final_score if iam_att else 0
+    iam_level = "Mastered" if iam_score >= 90 else "Proficient" if iam_score > 0 else "Unattempted"
+
+    # Domain 3: Network Security & VPC (vpc-exposed-database)
+    net_att = best_by_slug.get("vpc-exposed-database")
+    net_score = net_att.final_score if net_att else 0
+    net_level = "Mastered" if net_score >= 90 else "Proficient" if net_score > 0 else "Unattempted"
+
+    competencies = [
+        CompetencyScore(
+            domain="Storage Security",
+            level=s3_level,
+            score_percent=s3_score,
+            verified_rules_count=6 if s3_att else 0,
+            summary="Amazon S3 Block Public Access (BPA), Access Control Lists (ACLs), and bucket policy scoping."
+        ),
+        CompetencyScore(
+            domain="IAM & Privilege Escalation",
+            level=iam_level,
+            score_percent=iam_score,
+            verified_rules_count=6 if iam_att else 0,
+            summary="IAM Least Privilege, AdministratorAccess detachment, service trust policy, and CloudWatch log preservation."
+        ),
+        CompetencyScore(
+            domain="Network Security & VPC",
+            level=net_level,
+            score_percent=net_score,
+            verified_rules_count=4 if net_att else 0,
+            summary="VPC Security Group ingress hardening, PostgreSQL isolation to RFC 1918 private subnets, and SSH removal."
+        )
+    ]
+
+    # 3. Badge evaluation
+    required_slugs = ["s3-public-invoices", "iam-overprivileged-lambda", "vpc-exposed-database"]
+    all_passed = all(slug in best_by_slug for slug in required_slugs)
+
+    if all_passed:
+        raw_hash = f"{current_student.id}-cloudproof-l1-credential"
+        token_hash = hashlib.sha256(raw_hash.encode()).hexdigest()[:12].upper()
+        verification_token = f"CP-VERIFY-{token_hash}"
+        earned_date = max(best_by_slug[s].completed_at for s in required_slugs)
+    else:
+        verification_token = "PENDING-ALL-CORE-INCIDENTS"
+        earned_date = None
+
+    badge = CertificationBadge(
+        badge_id="BADGE-INCIDENT-RESPONDER-L1",
+        title="Cloud Incident Responder - Foundational",
+        issuer="CloudProof Verification Authority",
+        verification_token=verification_token,
+        is_earned=all_passed,
+        earned_at=earned_date,
+        required_missions=[
+            "The Public Invoice Bucket (Storage)",
+            "The Overprivileged Lambda Role (IAM)",
+            "The World-Readable Database Port (Network)"
+        ]
+    )
+
+    all_scores = [att.final_score for att in history_records]
+    avg_score = float(sum(all_scores) / len(all_scores)) if all_scores else 0.0
+
+    return StudentPortfolioResponse(
+        student_id=current_student.id,
+        full_name=current_student.full_name,
+        email=current_student.email,
+        total_completed=len(history_records),
+        overall_average_score=avg_score,
+        competencies=competencies,
+        badge=badge,
+        history=history_records
     )

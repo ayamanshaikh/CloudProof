@@ -104,7 +104,16 @@ export default function StudentDashboardPage() {
             </div>
           </div>
 
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-3">
+            <Link
+              href="/student/portfolio"
+              className="flex items-center space-x-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-800 px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm transition"
+              title="View Verified Skills Portfolio & Certification Badge"
+            >
+              <Award className="h-4 w-4 text-indigo-600" />
+              <span>Skills Portfolio</span>
+            </Link>
+
             {/* Virtual Hint Balance Pill */}
             <div
               className="flex items-center space-x-1.5 bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm"

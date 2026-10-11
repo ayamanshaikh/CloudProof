@@ -51,3 +51,44 @@ class StudentDashboardResponse(BaseModel):
     stats: StudentStats
     enrolled_classes: List[EnrolledClassSummary]
     assigned_missions: List[AssignedMissionItem]
+
+
+class CompetencyScore(BaseModel):
+    domain: str
+    level: str  # "Mastered", "Proficient", "In Progress", "Unattempted"
+    score_percent: int
+    verified_rules_count: int
+    summary: str
+
+
+class CertificationBadge(BaseModel):
+    badge_id: str
+    title: str
+    issuer: str
+    verification_token: str
+    is_earned: bool
+    earned_at: Optional[datetime] = None
+    required_missions: List[str]
+
+
+class CompletedMissionRecord(BaseModel):
+    mission_title: str
+    slug: str
+    category: str
+    final_score: int
+    base_score: int
+    penalty_score: int
+    mode: str
+    completed_at: datetime
+    attempt_id: str
+
+
+class StudentPortfolioResponse(BaseModel):
+    student_id: str
+    full_name: str
+    email: str
+    total_completed: int
+    overall_average_score: float
+    competencies: List[CompetencyScore]
+    badge: CertificationBadge
+    history: List[CompletedMissionRecord]
