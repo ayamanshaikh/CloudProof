@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     # AI
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_MODEL: str = "gemini-3.8-flash"
 
     # AWS
     AWS_REGION: str = "us-east-1"

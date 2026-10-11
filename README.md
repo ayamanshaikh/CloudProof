@@ -122,3 +122,16 @@ pytest tests/ -v
 ```bash
 docker compose up --build
 ```
+
+---
+
+## Documentation & Pilot Guide
+
+For detailed university adoption, instructor workflows, and student mission walkthroughs, refer to the [College Pilot & Instructor Guide](docs/PILOT_GUIDE.md):
+
+* **Instructor Workflow**: Creating course sections, join codes, assigning missions, tracking common mistakes, and 1-click CSV gradebook export.
+* **Student Experience**: Incident Workbench, S3 Block Public Access & Policy editors, and the 4-tiered Virtual Hint Economy.
+* **Automated Verification**: Deterministic program rules with millisecond execution (Zero AI hallucination).
+* **AI Security Post-Mortem**: Grounded 6-part incident debriefs powered by Google Gemini (`gemini-3.8-flash`) with offline fallback.
+* **Dual-Mode Setup**: Mode A (Zero-cost simulation) vs Mode B (Real AWS cross-account STS `AssumeRole`).
+
