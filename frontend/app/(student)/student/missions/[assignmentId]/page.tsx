@@ -8,7 +8,8 @@ import {
   api,
   AttemptStateResponse,
   VerifyAttemptResponse,
-  RuleResultItem
+  RuleResultItem,
+  HintAttemptStatusResponse
 } from "@/lib/api";
 import {
   ShieldCheck,
@@ -24,7 +25,11 @@ import {
   Check,
   Save,
   Clock,
-  Sparkles
+  Sparkles,
+  Coins,
+  Lightbulb,
+  ChevronRight,
+  X
 } from "lucide-react";
 
 export default function MissionWorkbenchPage() {
@@ -54,12 +59,53 @@ export default function MissionWorkbenchPage() {
   const [verdictData, setVerdictData] = useState<VerifyAttemptResponse | null>(null);
   const [showVerdictModal, setShowVerdictModal] = useState(false);
 
+  // Virtual Hint Economy State
+  const [hintStatus, setHintStatus] = useState<HintAttemptStatusResponse | null>(null);
+  const [isHintDrawerOpen, setIsHintDrawerOpen] = useState(false);
+  const [isUnlockingHint, setIsUnlockingHint] = useState<number | null>(null);
+  const [hintError, setHintError] = useState<string | null>(null);
+
+  const fetchHints = useCallback(async (attemptId: string) => {
+    try {
+      setHintError(null);
+      const data = await api.getHintStatus(attemptId);
+      setHintStatus(data);
+    } catch (err: any) {
+      console.error("Failed to load hints:", err);
+    }
+  }, []);
+
+  const handleUnlockHint = async (level: number) => {
+    if (!attempt) return;
+    try {
+      setIsUnlockingHint(level);
+      setHintError(null);
+      await api.unlockHint(attempt.attempt_id, level);
+      await fetchHints(attempt.attempt_id);
+      // Update attempt penalty score
+      const penaltyIncrement = level === 1 ? 5 : level === 2 ? 10 : level === 3 ? 15 : 20;
+      setAttempt((prev) =>
+        prev
+          ? {
+              ...prev,
+              penalty_score: (prev.penalty_score || 0) + penaltyIncrement,
+            }
+          : null
+      );
+    } catch (err: any) {
+      setHintError(err.message || "Failed to unlock hint.");
+    } finally {
+      setIsUnlockingHint(null);
+    }
+  };
+
   const initAttempt = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
       const data = await api.startMission(assignmentId, { mode: "demo" });
       setAttempt(data);
+      fetchHints(data.attempt_id);
 
       // Hydrate editor state from attempt's demo state
       if (data.current_demo_state) {
@@ -214,6 +260,23 @@ export default function MissionWorkbenchPage() {
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
               <span>Simulation Mode (Zero Cost)</span>
             </div>
+
+            <button
+              onClick={() => {
+                setIsHintDrawerOpen(true);
+                if (attempt) fetchHints(attempt.attempt_id);
+              }}
+              className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-xs font-semibold shadow-sm transition flex items-center space-x-1.5"
+              title="View Incident Hints & Guidance"
+            >
+              <Lightbulb className="h-3.5 w-3.5 text-amber-600" />
+              <span>Hints</span>
+              {hintStatus && (
+                <span className="ml-1 bg-amber-200 text-amber-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                  {hintStatus.wallet_balance} 🪙
+                </span>
+              )}
+            </button>
 
             <button
               onClick={handleSaveState}
@@ -540,6 +603,179 @@ export default function MissionWorkbenchPage() {
                   Return to Dashboard
                 </Link>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Slide-over Hint Drawer */}
+      {isHintDrawerOpen && (
+        <div className="fixed inset-0 z-50 overflow-hidden">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
+            onClick={() => setIsHintDrawerOpen(false)}
+          />
+
+          <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
+            <div className="w-screen max-w-md bg-white shadow-2xl border-l border-slate-200 flex flex-col h-full animate-in slide-in-from-right duration-200">
+              {/* Drawer Header */}
+              <div className="p-6 border-b border-slate-200 flex items-start justify-between bg-slate-50">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-amber-100 text-amber-700 rounded-lg">
+                    <Lightbulb className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">Incident Assistance</h2>
+                    <p className="text-xs text-slate-500">Progressive disclosure hint system</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsHintDrawerOpen(false)}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200/50 transition"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Virtual Hint Economy Bar */}
+              <div className="bg-amber-50/70 border-b border-amber-200/60 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center space-x-1.5 text-xs font-bold text-amber-900">
+                    <Coins className="h-4 w-4 text-amber-600" />
+                    <span>Daily Wallet Balance:</span>
+                  </div>
+                  <span className="font-extrabold text-amber-900 text-sm">
+                    {hintStatus?.wallet_balance ?? 10} / 10 Tokens
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-amber-800">
+                  <span>Current Hint Penalty Applied:</span>
+                  <span className="font-bold text-red-600">
+                    -{hintStatus?.total_penalty_percent ?? 0}%
+                  </span>
+                </div>
+
+                <p className="mt-2 text-[11px] text-amber-700/90 leading-tight">
+                  Hints cost tokens and apply a score penalty. Try solving the incident on your own first!
+                </p>
+              </div>
+
+              {hintError && (
+                <div className="m-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2 text-xs text-red-700">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span>{hintError}</span>
+                </div>
+              )}
+
+              {/* Hints List */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {hintStatus?.hints && hintStatus.hints.length > 0 ? (
+                  hintStatus.hints.map((hint) => {
+                    const isUnlocked = hint.is_unlocked;
+                    const isUnlockable =
+                      !isUnlocked &&
+                      (hint.level === 1 ||
+                        hintStatus.hints.some((h) => h.level === hint.level - 1 && h.is_unlocked));
+                    const hasTokens = (hintStatus.wallet_balance ?? 0) >= hint.token_cost;
+
+                    return (
+                      <div
+                        key={hint.id || hint.level}
+                        className={`rounded-xl border transition p-4 ${
+                          isUnlocked
+                            ? "border-emerald-200 bg-emerald-50/20"
+                            : isUnlockable
+                            ? "border-amber-200 bg-white shadow-sm"
+                            : "border-slate-200 bg-slate-50/60 opacity-70"
+                        }`}
+                      >
+                        {/* Tier Title and Status */}
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 font-mono">
+                              Tier {hint.level}
+                            </span>
+                            <span className="text-xs font-bold text-slate-900">
+                              {hint.title}
+                            </span>
+                          </div>
+
+                          {isUnlocked ? (
+                            <span className="inline-flex items-center space-x-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                              <CheckCircle2 className="h-3 w-3" />
+                              <span>Unlocked (-{hint.penalty_percent}%)</span>
+                            </span>
+                          ) : (
+                            <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                              {hint.token_cost} 🪙 (-{hint.penalty_percent}%)
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Unlocked Content or Locked Action */}
+                        {isUnlocked ? (
+                          <div className="mt-2 p-3 bg-white border border-emerald-100 rounded-lg text-xs text-slate-800 leading-relaxed font-mono whitespace-pre-wrap">
+                            {hint.content}
+                          </div>
+                        ) : isUnlockable ? (
+                          <div className="mt-3">
+                            <p className="text-xs text-slate-500 mb-2">
+                              Unlocks guidance for this investigation phase. Deducts {hint.token_cost} token{hint.token_cost > 1 ? "s" : ""} and applies -{hint.penalty_percent}% to your score.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => handleUnlockHint(hint.level)}
+                              disabled={isUnlockingHint === hint.level || !hasTokens}
+                              className={`w-full py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center space-x-2 ${
+                                hasTokens
+                                  ? "bg-amber-500 hover:bg-amber-600 text-slate-900 shadow-sm cursor-pointer"
+                                  : "bg-slate-200 text-slate-500 cursor-not-allowed"
+                              }`}
+                            >
+                              {isUnlockingHint === hint.level ? (
+                                <>
+                                  <div className="w-3.5 h-3.5 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></div>
+                                  <span>Unlocking Hint...</span>
+                                </>
+                              ) : hasTokens ? (
+                                <>
+                                  <Lightbulb className="h-3.5 w-3.5" />
+                                  <span>Unlock Tier {hint.level} ({hint.token_cost} Tokens)</span>
+                                </>
+                              ) : (
+                                <span>Insufficient Tokens ({hintStatus.wallet_balance}/{hint.token_cost})</span>
+                              )}
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="mt-2 flex items-center space-x-2 text-xs text-slate-400">
+                            <Lock className="h-3.5 w-3.5 shrink-0" />
+                            <span>Unlock Tier {hint.level - 1} first to access this hint.</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="p-8 text-center text-xs text-slate-400">
+                    No hints configured for this mission.
+                  </div>
+                )}
+              </div>
+
+              {/* Drawer Footer */}
+              <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsHintDrawerOpen(false)}
+                  className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-lg transition"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
