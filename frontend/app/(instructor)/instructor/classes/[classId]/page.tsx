@@ -24,7 +24,8 @@ import {
   Copy,
   Check,
   BarChart3,
-  Lightbulb
+  Lightbulb,
+  Download
 } from "lucide-react";
 
 export default function ClassDetailsPage() {
@@ -47,6 +48,7 @@ export default function ClassDetailsPage() {
   const [assignError, setAssignError] = useState<string | null>(null);
 
   const [copiedCode, setCopiedCode] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -103,6 +105,26 @@ export default function ClassDetailsPage() {
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
+  const handleExportCsv = async () => {
+    if (!classDetails) return;
+    try {
+      setIsExporting(true);
+      const blob = await api.exportClassGradesCsv(classId);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `cloudproof_grades_${classDetails.name.toLowerCase().replace(/\s+/g, "_")}_${classDetails.join_code}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      alert(err.message || "Failed to export grades CSV.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   if (authLoading || (isLoading && !classDetails)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -139,6 +161,16 @@ export default function ClassDetailsPage() {
           </div>
 
           <div className="flex items-center space-x-3">
+            <button
+              onClick={handleExportCsv}
+              disabled={isExporting}
+              className="inline-flex items-center space-x-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow-sm transition disabled:opacity-50"
+              title="Download CSV Gradebook & Progress Matrix"
+            >
+              <Download className="h-4 w-4 text-slate-500" />
+              <span>{isExporting ? "Exporting..." : "Export Grades (CSV)"}</span>
+            </button>
+
             <button
               onClick={() => setShowAssignModal(true)}
               className="inline-flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow-sm transition"

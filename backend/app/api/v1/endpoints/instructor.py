@@ -1,6 +1,9 @@
+import csv
+import io
 import random
 import string
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
@@ -324,3 +327,115 @@ async def get_class_details_and_analytics(
         progress_matrix=progress_matrix,
         common_mistakes=common_mistakes_list
     )
+
+
+@router.get("/classes/{class_id}/export")
+async def export_class_grades_csv(
+    class_id: str,
+    current_instructor: User = Depends(get_current_instructor),
+    db: AsyncSession = Depends(get_db)
+):
+    """Export complete class gradebook and mission attempt analytics as RFC 4180 CSV."""
+    stmt_class = (
+        select(Classroom)
+        .options(
+            selectinload(Classroom.members).selectinload(ClassMember.student),
+            selectinload(Classroom.assignments).selectinload(MissionAssignment.mission),
+            selectinload(Classroom.assignments).selectinload(MissionAssignment.attempts).selectinload(MissionAttempt.hint_usages)
+        )
+        .where(
+            Classroom.id == class_id,
+            Classroom.instructor_id == current_instructor.id
+        )
+    )
+    res_class = await db.execute(stmt_class)
+    classroom = res_class.scalar_one_or_none()
+
+    if not classroom:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Class not found or does not belong to you"
+        )
+
+    output = io.StringIO()
+    writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
+
+    # Header Row
+    writer.writerow([
+        "Student Name",
+        "Student Email",
+        "Mission Title",
+        "Attempt Status",
+        "Mode",
+        "Base Score",
+        "Penalty Deductions",
+        "Final Grade",
+        "Hints Used",
+        "Completed At"
+    ])
+
+    for member in sorted(classroom.members, key=lambda m: m.student.full_name):
+        student = member.student
+        if not classroom.assignments:
+            writer.writerow([
+                student.full_name,
+                student.email,
+                "No Missions Assigned",
+                "N/A",
+                "N/A",
+                0,
+                0,
+                0,
+                0,
+                "N/A"
+            ])
+            continue
+
+        for assignment in sorted(classroom.assignments, key=lambda a: a.mission.title):
+            mission = assignment.mission
+            student_attempts = [
+                a for a in assignment.attempts if a.student_id == student.id
+            ]
+            if not student_attempts:
+                writer.writerow([
+                    student.full_name,
+                    student.email,
+                    mission.title,
+                    "NOT_STARTED",
+                    "N/A",
+                    0,
+                    0,
+                    0,
+                    0,
+                    "Not Started"
+                ])
+            else:
+                latest_attempt = max(student_attempts, key=lambda a: a.started_at)
+                completed_str = latest_attempt.completed_at.isoformat() if latest_attempt.completed_at else "Incomplete"
+                hints_count = len(latest_attempt.hint_usages) if latest_attempt.hint_usages else 0
+                writer.writerow([
+                    student.full_name,
+                    student.email,
+                    mission.title,
+                    latest_attempt.status.upper(),
+                    latest_attempt.mode,
+                    latest_attempt.base_score,
+                    latest_attempt.penalty_score,
+                    latest_attempt.final_score,
+                    hints_count,
+                    completed_str
+                ])
+
+    csv_content = output.getvalue()
+    safe_name = classroom.name.lower().replace(" ", "_").replace("/", "_")
+    filename = f"cloudproof_grades_{safe_name}_{classroom.join_code}.csv"
+
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-cache"
+        }
+    )
+
