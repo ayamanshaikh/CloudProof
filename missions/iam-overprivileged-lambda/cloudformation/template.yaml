@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  CloudProof Mission 2: The Overprivileged Lambda Role.
+  Provisions an overprivileged Lambda execution role and a read-only cross-account
+  verification role for CloudProof automated grading.
+
+Parameters:
+  PlatformAccountId:
+    Type: String
+    Description: AWS Account ID of the CloudProof platform backend.
+    AllowedPattern: '^\d{12}$'
+    ConstraintDescription: Must be a valid 12-digit AWS Account ID.
+
+  ExternalId:
+    Type: String
+    Description: Unique student attempt External ID issued by CloudProof to prevent Confused Deputy attacks.
+    MinLength: 8
+    MaxLength: 64
+
+Resources:
+  # Vulnerable Lambda Execution Role (To be remediated by student)
+  WorkerLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "WorkerLambdaExecutionRole-${AWS::AccountId}"
+      Description: "Background worker role provisioned with overly broad permissions"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+      Policies:
+        - PolicyName: WorkerInlineWildcardPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: '*'
+                Resource: '*'
+
+  # Secure Cross-Account Verification Role assumed by CloudProof Backend
+  CloudProofVerificationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: CloudProofIAMVerificationRole
+      Description: Read-only verification role assumed by CloudProof with External ID condition.
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${PlatformAccountId}:root"
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+      Policies:
+        - PolicyName: CloudProofIAMReadOnlyPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:GetRole
+                  - iam:GetRolePolicy
+                  - iam:ListRolePolicies
+                  - iam:ListAttachedRolePolicies
+                Resource: !GetAtt WorkerLambdaExecutionRole.Arn
+
+Outputs:
+  WorkerRoleArn:
+    Description: ARN of the vulnerable worker role
+    Value: !GetAtt WorkerLambdaExecutionRole.Arn
+
+  VerificationRoleArn:
+    Description: ARN of the role CloudProof assumes for automated verification
+    Value: !GetAtt CloudProofVerificationRole.Arn

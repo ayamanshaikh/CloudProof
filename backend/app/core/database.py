@@ -115,6 +115,90 @@ async def seed_initial_data(session: AsyncSession):
         session.add_all(hints)
         await session.commit()
 
+    # Seed Mission 2: The Overprivileged Lambda Role
+    stmt2 = select(Mission).where(Mission.slug == "iam-overprivileged-lambda")
+    result2 = await session.execute(stmt2)
+    existing_mission_2 = result2.scalar_one_or_none()
+
+    if not existing_mission_2:
+        mission_2 = Mission(
+            slug="iam-overprivileged-lambda",
+            title="The Overprivileged Lambda Role",
+            description="A background image-processing Lambda worker was assigned an overly broad execution role with AdministratorAccess and wildcard actions. If exploited, an attacker can take over the AWS account. Enforce IAM least privilege, detach administrative policies, and scope permissions to target resources.",
+            category="Identity & Access Management",
+            difficulty="Intermediate",
+            base_points=100,
+            initial_state={
+                "role_name": "WorkerLambdaExecutionRole",
+                "attached_managed_policies": [
+                    "arn:aws:iam::aws:policy/AdministratorAccess"
+                ],
+                "inline_policy": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Sid": "AllowAllWorkerActions",
+                            "Effect": "Allow",
+                            "Action": "*",
+                            "Resource": "*"
+                        }
+                    ]
+                },
+                "trust_policy": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": "lambda.amazonaws.com"
+                            },
+                            "Action": "sts:AssumeRole"
+                        }
+                    ]
+                }
+            }
+        )
+        session.add(mission_2)
+        await session.flush()
+
+        hints_2 = [
+            Hint(
+                mission_id=mission_2.id,
+                level=1,
+                title="IAM Least Privilege Principles",
+                content="AWS Lambda functions should only possess the minimum permissions necessary to perform their function. Check both the attached managed policies and inline policy statements for wildcards ('*').",
+                token_cost=1,
+                penalty_percent=5
+            ),
+            Hint(
+                mission_id=mission_2.id,
+                level=2,
+                title="Detaching Dangerous Administrative Policies",
+                content="Notice that 'arn:aws:iam::aws:policy/AdministratorAccess' is attached to this role. Detach it immediately. In addition, look for 'Action': '*' in the inline policy.",
+                token_cost=2,
+                penalty_percent=10
+            ),
+            Hint(
+                mission_id=mission_2.id,
+                level=3,
+                title="Preserving CloudWatch Logging & Scoping S3",
+                content="The worker only needs to: (1) Write logs to CloudWatch (logs:CreateLogStream, logs:PutLogEvents) and (2) Read incoming images from 'arn:aws:s3:::acme-media-uploads-2026/*'. Do not grant wildcard Resource '*'.",
+                token_cost=3,
+                penalty_percent=15
+            ),
+            Hint(
+                mission_id=mission_2.id,
+                level=4,
+                title="Complete Remediated Policy State",
+                content="Detach AdministratorAccess. In inline_policy, permit only 's3:GetObject' on 'arn:aws:s3:::acme-media-uploads-2026/*' and 'logs:CreateLogStream', 'logs:PutLogEvents' on CloudWatch log group ARNs. Revoke all iam:* actions.",
+                token_cost=4,
+                penalty_percent=20
+            )
+        ]
+        session.add_all(hints_2)
+        await session.commit()
+
+
 
 async def init_db():
     """Create all tables in the database and seed initial mission catalog."""

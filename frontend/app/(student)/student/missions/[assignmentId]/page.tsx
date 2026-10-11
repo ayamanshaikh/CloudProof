@@ -30,7 +30,10 @@ import {
   Coins,
   Lightbulb,
   ChevronRight,
-  X
+  X,
+  Key,
+  Plus,
+  Trash2
 } from "lucide-react";
 
 export default function MissionWorkbenchPage() {
@@ -42,7 +45,7 @@ export default function MissionWorkbenchPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Editable Demo Configuration State
+  // Editable S3 Demo Configuration State
   const [bucketName, setBucketName] = useState("");
   const [bpa, setBpa] = useState({
     BlockPublicAcls: false,
@@ -52,6 +55,16 @@ export default function MissionWorkbenchPage() {
   });
   const [bucketAcl, setBucketAcl] = useState("public-read");
   const [bucketPolicyJson, setBucketPolicyJson] = useState("");
+
+  // Editable IAM Demo Configuration State (Mission 2)
+  const [roleName, setRoleName] = useState("WorkerLambdaExecutionRole");
+  const [attachedPolicies, setAttachedPolicies] = useState<string[]>([
+    "arn:aws:iam::aws:policy/AdministratorAccess",
+  ]);
+  const [inlinePolicyJson, setInlinePolicyJson] = useState("");
+  const [trustPolicyJson, setTrustPolicyJson] = useState("");
+  const [customPolicyInput, setCustomPolicyInput] = useState("");
+
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -131,21 +144,32 @@ export default function MissionWorkbenchPage() {
       // Hydrate editor state from attempt's demo state
       if (data.current_demo_state) {
         const state = data.current_demo_state;
-        setBucketName(state.bucket_name || "cloudproof-acme-invoices-2026");
-        setBpa(
-          state.public_access_block || {
-            BlockPublicAcls: false,
-            IgnorePublicAcls: false,
-            BlockPublicPolicy: false,
-            RestrictPublicBuckets: false,
-          }
-        );
-        setBucketAcl(state.bucket_acl || "public-read");
-        setBucketPolicyJson(
-          state.bucket_policy
-            ? JSON.stringify(state.bucket_policy, null, 2)
-            : ""
-        );
+        if (data.mission_slug === "iam-overprivileged-lambda") {
+          setRoleName(state.role_name || "WorkerLambdaExecutionRole");
+          setAttachedPolicies(state.attached_managed_policies || []);
+          setInlinePolicyJson(
+            state.inline_policy ? JSON.stringify(state.inline_policy, null, 2) : ""
+          );
+          setTrustPolicyJson(
+            state.trust_policy ? JSON.stringify(state.trust_policy, null, 2) : ""
+          );
+        } else {
+          setBucketName(state.bucket_name || "cloudproof-acme-invoices-2026");
+          setBpa(
+            state.public_access_block || {
+              BlockPublicAcls: false,
+              IgnorePublicAcls: false,
+              BlockPublicPolicy: false,
+              RestrictPublicBuckets: false,
+            }
+          );
+          setBucketAcl(state.bucket_acl || "public-read");
+          setBucketPolicyJson(
+            state.bucket_policy
+              ? JSON.stringify(state.bucket_policy, null, 2)
+              : ""
+          );
+        }
       }
     } catch (err: any) {
       setError(err.message || "Failed to initialize mission attempt.");
@@ -168,25 +192,56 @@ export default function MissionWorkbenchPage() {
   const handleSaveState = async () => {
     if (!attempt) return;
 
-    let parsedPolicy = null;
-    if (bucketPolicyJson.trim()) {
-      try {
-        parsedPolicy = JSON.parse(bucketPolicyJson);
-      } catch {
-        setError("Invalid JSON format in Bucket Policy.");
-        return;
-      }
-    }
-
     try {
       setIsSaving(true);
       setError(null);
-      const updatedState = {
-        bucket_name: bucketName,
-        public_access_block: bpa,
-        bucket_acl: bucketAcl,
-        bucket_policy: parsedPolicy,
-      };
+
+      let updatedState: any = {};
+      if (attempt.mission_slug === "iam-overprivileged-lambda") {
+        let parsedInline = null;
+        if (inlinePolicyJson.trim()) {
+          try {
+            parsedInline = JSON.parse(inlinePolicyJson);
+          } catch {
+            setError("Invalid JSON format in IAM Inline Policy.");
+            setIsSaving(false);
+            return;
+          }
+        }
+        let parsedTrust = null;
+        if (trustPolicyJson.trim()) {
+          try {
+            parsedTrust = JSON.parse(trustPolicyJson);
+          } catch {
+            setError("Invalid JSON format in Trust Policy.");
+            setIsSaving(false);
+            return;
+          }
+        }
+        updatedState = {
+          role_name: roleName,
+          attached_managed_policies: attachedPolicies,
+          inline_policy: parsedInline,
+          trust_policy: parsedTrust,
+        };
+      } else {
+        let parsedPolicy = null;
+        if (bucketPolicyJson.trim()) {
+          try {
+            parsedPolicy = JSON.parse(bucketPolicyJson);
+          } catch {
+            setError("Invalid JSON format in Bucket Policy.");
+            setIsSaving(false);
+            return;
+          }
+        }
+        updatedState = {
+          bucket_name: bucketName,
+          public_access_block: bpa,
+          bucket_acl: bucketAcl,
+          bucket_policy: parsedPolicy,
+        };
+      }
 
       await api.updateDemoState(attempt.attempt_id, updatedState);
       setSaveSuccess(true);
@@ -242,6 +297,41 @@ export default function MissionWorkbenchPage() {
       BlockPublicPolicy: true,
       RestrictPublicBuckets: true,
     });
+  };
+
+  const handleDetachPolicy = (arnToDetach: string) => {
+    setAttachedPolicies((prev) => prev.filter((arn) => arn !== arnToDetach));
+  };
+
+  const handleAttachPolicy = (arnToAttach: string) => {
+    const trimmed = arnToAttach.trim();
+    if (!trimmed) return;
+    if (!attachedPolicies.includes(trimmed)) {
+      setAttachedPolicies((prev) => [...prev, trimmed]);
+    }
+    setCustomPolicyInput("");
+  };
+
+  const handleLoadScopedTemplate = () => {
+    const template = {
+      Version: "2012-10-17",
+      Statement: [
+        {
+          Sid: "AllowScopedInvoiceAccess",
+          Effect: "Allow",
+          Action: [
+            "s3:GetObject",
+            "s3:PutObject"
+          ],
+          Resource: "arn:aws:s3:::company-invoices-2026/*"
+        }
+      ]
+    };
+    setInlinePolicyJson(JSON.stringify(template, null, 2));
+  };
+
+  const handleClearInlinePolicy = () => {
+    setInlinePolicyJson("");
   };
 
   if (authLoading || (isLoading && !attempt)) {
@@ -530,13 +620,27 @@ export default function MissionWorkbenchPage() {
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
             <div>
               <div className="inline-flex items-center space-x-2 bg-red-50 text-red-700 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider mb-2">
-                <span>Active Incident: Storage Security</span>
+                <span>
+                  {attempt?.mission_slug === "iam-overprivileged-lambda"
+                    ? "Active Incident: IAM & Privilege Escalation"
+                    : "Active Incident: Storage Security"}
+                </span>
               </div>
               <h1 className="text-2xl font-bold text-slate-900">{attempt?.mission_title}</h1>
               <p className="text-sm text-slate-600 mt-2 max-w-3xl leading-relaxed">
-                A startup accidentally exposed confidential customer PDF invoices through an Amazon S3 bucket.
-                Anyone on the public internet can download invoices without authentication. Your mission is to
-                investigate the S3 configuration below, identify why the bucket is exposed, and remediate the vulnerability.
+                {attempt?.mission_slug === "iam-overprivileged-lambda" ? (
+                  <>
+                    A startup backend Lambda microservice was deployed with full <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-red-600 font-bold">AdministratorAccess</code> and wildcard permissions.
+                    If compromised via a dependency vulnerability or SSRF, attackers can escalate privileges, access arbitrary AWS resources, or delete production infrastructure.
+                    Your mission is to detach the root admin policy, preserve CloudWatch logging, and craft a scoped least-privilege inline policy allowing only required S3 invoice processing.
+                  </>
+                ) : (
+                  <>
+                    A startup accidentally exposed confidential customer PDF invoices through an Amazon S3 bucket.
+                    Anyone on the public internet can download invoices without authentication. Your mission is to
+                    investigate the S3 configuration below, identify why the bucket is exposed, and remediate the vulnerability.
+                  </>
+                )}
               </p>
             </div>
 
@@ -574,140 +678,353 @@ export default function MissionWorkbenchPage() {
         )}
 
         {/* Configuration Inspector Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Left Column: S3 Block Public Access & ACL */}
-          <div className="space-y-6">
-            {/* Block Public Access Box */}
-            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-2">
-                  <Sliders className="h-5 w-5 text-blue-600" />
-                  <h3 className="font-bold text-slate-900 text-base">S3 Block Public Access (BPA)</h3>
+        {attempt?.mission_slug === "iam-overprivileged-lambda" ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Left Column: Attached Managed Policies & Trust Policy */}
+            <div className="space-y-6">
+              {/* Attached Managed Policies */}
+              <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center space-x-2">
+                    <Key className="h-5 w-5 text-purple-600" />
+                    <h3 className="font-bold text-slate-900 text-base">Attached Managed Policies</h3>
+                  </div>
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                    {attachedPolicies.length} Attached
+                  </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleEnableAllBpa}
-                  className="text-xs font-semibold text-blue-600 hover:text-blue-800"
-                >
-                  Enable All (Recommended)
-                </button>
-              </div>
 
-              <div className="space-y-4">
-                {[
-                  {
-                    key: "BlockPublicAcls",
-                    label: "Block public access to buckets and objects granted through new public ACLs",
-                    desc: "Blocks new public ACLs and uploading objects with public ACLs.",
-                  },
-                  {
-                    key: "IgnorePublicAcls",
-                    label: "Ignore all public ACLs on this bucket and any objects that it contains",
-                    desc: "Causes AWS S3 to ignore all public ACLs on this bucket and its objects.",
-                  },
-                  {
-                    key: "BlockPublicPolicy",
-                    label: "Block public access to buckets and objects granted through any public bucket policy",
-                    desc: "Rejects bucket policies that allow public, unauthenticated access.",
-                  },
-                  {
-                    key: "RestrictPublicBuckets",
-                    label: "Restrict public access to this bucket only to AWS service principals and authorized users",
-                    desc: "Restricts bucket access to AWS service principals and authorized users in the bucket owner account.",
-                  },
-                ].map((item) => {
-                  const isChecked = (bpa as any)[item.key];
-                  return (
-                    <label
-                      key={item.key}
-                      className="flex items-start justify-between p-3 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer transition"
-                    >
-                      <div className="pr-4">
-                        <span className="text-xs font-bold text-slate-900 block font-mono">
-                          {item.key}
-                        </span>
-                        <span className="text-xs text-slate-500 block mt-0.5">{item.desc}</span>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={(e) =>
-                          setBpa((prev) => ({ ...prev, [item.key]: e.target.checked }))
+                <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+                  AWS Managed Policies attached directly to this Lambda IAM Role. Identify and detach overly permissive policies, and ensure minimal required service roles are attached.
+                </p>
+
+                {/* List of Attached Policies */}
+                <div className="space-y-3 mb-5">
+                  {attachedPolicies.length === 0 ? (
+                    <div className="p-4 border border-dashed border-slate-200 rounded-lg text-center text-xs text-slate-400">
+                      No managed policies currently attached to this IAM role.
+                    </div>
+                  ) : (
+                    attachedPolicies.map((arn) => {
+                      const isAdmin = arn.includes("AdministratorAccess");
+                      const isLambdaBasic = arn.includes("AWSLambdaBasicExecutionRole");
+                      const policyName = arn.split("/").pop() || arn;
+
+                      return (
+                        <div
+                          key={arn}
+                          className={`p-3.5 rounded-xl border flex items-center justify-between transition ${
+                            isAdmin
+                              ? "border-red-200 bg-red-50/50"
+                              : isLambdaBasic
+                              ? "border-emerald-200 bg-emerald-50/40"
+                              : "border-slate-200 bg-slate-50"
+                          }`}
+                        >
+                          <div className="flex-1 pr-3 min-w-0">
+                            <div className="flex items-center space-x-2">
+                              <span className="font-mono text-xs font-bold text-slate-900 truncate">
+                                {policyName}
+                              </span>
+                              {isAdmin && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 shrink-0">
+                                  CRITICAL RISK
+                                </span>
+                              )}
+                              {isLambdaBasic && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 shrink-0">
+                                  LOGGING
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[11px] text-slate-500 font-mono truncate block mt-0.5">
+                              {arn}
+                            </span>
+                            {isAdmin && (
+                              <p className="text-[11px] text-red-600 mt-1">
+                                Grants wildcard (<code>*:*</code>) administrative access to all AWS resources. Violates least-privilege.
+                              </p>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDetachPolicy(arn)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-white rounded-lg border border-transparent hover:border-red-200 transition shrink-0"
+                            title={`Detach ${policyName}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Quick Attach Helpers */}
+                <div className="pt-4 border-t border-slate-100 space-y-3">
+                  <span className="text-xs font-bold text-slate-700 block">Quick Policy Actions:</span>
+                  <div className="flex flex-wrap gap-2">
+                    {!attachedPolicies.includes("arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole") && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleAttachPolicy(
+                            "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+                          )
                         }
-                        className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                      />
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
+                        className="px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold hover:bg-emerald-100 transition flex items-center space-x-1.5"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>Attach AWSLambdaBasicExecutionRole</span>
+                      </button>
+                    )}
+                    {attachedPolicies.includes("arn:aws:iam::aws:policy/AdministratorAccess") && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleDetachPolicy("arn:aws:iam::aws:policy/AdministratorAccess")
+                        }
+                        className="px-2.5 py-1.5 rounded-lg bg-red-50 text-red-700 border border-red-200 text-xs font-semibold hover:bg-red-100 transition flex items-center space-x-1.5"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        <span>Detach AdministratorAccess</span>
+                      </button>
+                    )}
+                  </div>
 
-            {/* Canned ACL Box */}
-            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-              <div className="flex items-center space-x-2 mb-3">
-                <Lock className="h-5 w-5 text-blue-600" />
-                <h3 className="font-bold text-slate-900 text-base">Bucket Canned ACL</h3>
-              </div>
-              <p className="text-xs text-slate-500 mb-4">
-                Access Control Lists define basic read/write grants on the bucket resource.
-              </p>
-
-              <select
-                value={bucketAcl}
-                onChange={(e) => setBucketAcl(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="private">private (Recommended - Bucket owner has full control)</option>
-                <option value="public-read">public-read (VULNERABLE - Anonymous users can read)</option>
-                <option value="public-read-write">public-read-write (DANGEROUS - Global write access)</option>
-                <option value="authenticated-read">authenticated-read (All AWS accounts can read)</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Right Column: Bucket Policy JSON Editor */}
-          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center space-x-2">
-                  <FileCode className="h-5 w-5 text-blue-600" />
-                  <h3 className="font-bold text-slate-900 text-base">Bucket Policy (JSON)</h3>
+                  {/* Custom ARN Attach Input */}
+                  <div className="flex items-center space-x-2 pt-2">
+                    <input
+                      type="text"
+                      value={customPolicyInput}
+                      onChange={(e) => setCustomPolicyInput(e.target.value)}
+                      placeholder="arn:aws:iam::aws:policy/..."
+                      className="flex-1 px-3 py-1.5 text-xs font-mono border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAttachPolicy(customPolicyInput)}
+                      className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-semibold hover:bg-slate-800 transition"
+                    >
+                      Attach
+                    </button>
+                  </div>
                 </div>
+              </div>
+
+              {/* Trust Policy (AssumeRolePolicyDocument) */}
+              <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <Lock className="h-5 w-5 text-purple-600" />
+                    <h3 className="font-bold text-slate-900 text-base">IAM Trust Relationship</h3>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                    lambda.amazonaws.com
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+                  Defines the trusted entity allowed to assume this IAM Role via <code>sts:AssumeRole</code>. Lambda requires service trust.
+                </p>
+                <textarea
+                  rows={6}
+                  value={trustPolicyJson}
+                  onChange={(e) => setTrustPolicyJson(e.target.value)}
+                  placeholder="Trust relationship policy JSON..."
+                  className="w-full p-3 font-mono text-xs border border-slate-300 rounded-lg bg-slate-900 text-slate-300 focus:outline-none focus:ring-2 focus:ring-purple-500 leading-relaxed"
+                />
+              </div>
+            </div>
+
+            {/* Right Column: Inline Policy JSON Editor */}
+            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <FileCode className="h-5 w-5 text-purple-600" />
+                    <h3 className="font-bold text-slate-900 text-base">Inline Customer Policy (JSON)</h3>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={handleLoadScopedTemplate}
+                      className="text-xs font-semibold text-purple-600 hover:text-purple-800 bg-purple-50 px-2.5 py-1 rounded-md border border-purple-200 transition"
+                    >
+                      Load Scoped S3 Template
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearInlinePolicy}
+                      className="text-xs font-semibold text-red-600 hover:text-red-800"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+                  Grant least-privilege permissions specifically for invoice processing. Specify explicit actions (e.g. <code>s3:GetObject</code>, <code>s3:PutObject</code>) and target resources (<code>arn:aws:s3:::company-invoices-2026/*</code>). Wildcards and IAM escalation primitives are strictly blocked.
+                </p>
+
+                <textarea
+                  rows={16}
+                  value={inlinePolicyJson}
+                  onChange={(e) => setInlinePolicyJson(e.target.value)}
+                  placeholder="Paste or write scoped inline policy JSON here..."
+                  className="w-full p-3 font-mono text-xs border border-slate-300 rounded-lg bg-slate-900 text-emerald-400 focus:outline-none focus:ring-2 focus:ring-purple-500 leading-relaxed"
+                />
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
+                <span className="text-xs text-slate-500">
+                  Target Role: <strong className="font-mono text-slate-700">{roleName}</strong>
+                </span>
                 <button
                   type="button"
-                  onClick={handleClearPolicy}
-                  className="text-xs font-semibold text-red-600 hover:text-red-800"
+                  onClick={handleSaveState}
+                  className="text-xs font-semibold text-purple-600 hover:underline"
                 >
-                  Clear Policy
+                  Apply Changes
                 </button>
               </div>
-              <p className="text-xs text-slate-500 mb-3">
-                An IAM resource policy attached to the bucket. Inspect statements granting anonymous Principal access.
-              </p>
-
-              <textarea
-                rows={16}
-                value={bucketPolicyJson}
-                onChange={(e) => setBucketPolicyJson(e.target.value)}
-                placeholder="No bucket policy attached (or paste JSON policy here)..."
-                className="w-full p-3 font-mono text-xs border border-slate-300 rounded-lg bg-slate-900 text-emerald-400 focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
-              />
-            </div>
-
-            <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
-              <span className="text-xs text-slate-500">
-                Target Resource: <strong className="font-mono text-slate-700">arn:aws:s3:::{bucketName}</strong>
-              </span>
-              <button
-                type="button"
-                onClick={handleSaveState}
-                className="text-xs font-semibold text-blue-600 hover:underline"
-              >
-                Apply Changes
-              </button>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Left Column: S3 Block Public Access & ACL */}
+            <div className="space-y-6">
+              {/* Block Public Access Box */}
+              <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center space-x-2">
+                    <Sliders className="h-5 w-5 text-blue-600" />
+                    <h3 className="font-bold text-slate-900 text-base">S3 Block Public Access (BPA)</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleEnableAllBpa}
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-800"
+                  >
+                    Enable All (Recommended)
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  {[
+                    {
+                      key: "BlockPublicAcls",
+                      label: "Block public access to buckets and objects granted through new public ACLs",
+                      desc: "Blocks new public ACLs and uploading objects with public ACLs.",
+                    },
+                    {
+                      key: "IgnorePublicAcls",
+                      label: "Ignore all public ACLs on this bucket and any objects that it contains",
+                      desc: "Causes AWS S3 to ignore all public ACLs on this bucket and its objects.",
+                    },
+                    {
+                      key: "BlockPublicPolicy",
+                      label: "Block public access to buckets and objects granted through any public bucket policy",
+                      desc: "Rejects bucket policies that allow public, unauthenticated access.",
+                    },
+                    {
+                      key: "RestrictPublicBuckets",
+                      label: "Restrict public access to this bucket only to AWS service principals and authorized users",
+                      desc: "Restricts bucket access to AWS service principals and authorized users in the bucket owner account.",
+                    },
+                  ].map((item) => {
+                    const isChecked = (bpa as any)[item.key];
+                    return (
+                      <label
+                        key={item.key}
+                        className="flex items-start justify-between p-3 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer transition"
+                      >
+                        <div className="pr-4">
+                          <span className="text-xs font-bold text-slate-900 block font-mono">
+                            {item.key}
+                          </span>
+                          <span className="text-xs text-slate-500 block mt-0.5">{item.desc}</span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) =>
+                            setBpa((prev) => ({ ...prev, [item.key]: e.target.checked }))
+                          }
+                          className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        />
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Canned ACL Box */}
+              <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+                <div className="flex items-center space-x-2 mb-3">
+                  <Lock className="h-5 w-5 text-blue-600" />
+                  <h3 className="font-bold text-slate-900 text-base">Bucket Canned ACL</h3>
+                </div>
+                <p className="text-xs text-slate-500 mb-4">
+                  Access Control Lists define basic read/write grants on the bucket resource.
+                </p>
+
+                <select
+                  value={bucketAcl}
+                  onChange={(e) => setBucketAcl(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="private">private (Recommended - Bucket owner has full control)</option>
+                  <option value="public-read">public-read (VULNERABLE - Anonymous users can read)</option>
+                  <option value="public-read-write">public-read-write (DANGEROUS - Global write access)</option>
+                  <option value="authenticated-read">authenticated-read (All AWS accounts can read)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Right Column: Bucket Policy JSON Editor */}
+            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <FileCode className="h-5 w-5 text-blue-600" />
+                    <h3 className="font-bold text-slate-900 text-base">Bucket Policy (JSON)</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleClearPolicy}
+                    className="text-xs font-semibold text-red-600 hover:text-red-800"
+                  >
+                    Clear Policy
+                  </button>
+                </div>
+                <p className="text-xs text-slate-500 mb-3">
+                  An IAM resource policy attached to the bucket. Inspect statements granting anonymous Principal access.
+                </p>
+
+                <textarea
+                  rows={16}
+                  value={bucketPolicyJson}
+                  onChange={(e) => setBucketPolicyJson(e.target.value)}
+                  placeholder="No bucket policy attached (or paste JSON policy here)..."
+                  className="w-full p-3 font-mono text-xs border border-slate-300 rounded-lg bg-slate-900 text-emerald-400 focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
+                />
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
+                <span className="text-xs text-slate-500">
+                  Target Resource: <strong className="font-mono text-slate-700">arn:aws:s3:::{bucketName}</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={handleSaveState}
+                  className="text-xs font-semibold text-blue-600 hover:underline"
+                >
+                  Apply Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )}
   </main>
