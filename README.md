@@ -125,13 +125,14 @@ docker compose up --build
 
 ---
 
-## Documentation & Pilot Guide
+## Comprehensive Documentation Suite
 
-For detailed university adoption, instructor workflows, and student mission walkthroughs, refer to the [College Pilot & Instructor Guide](docs/PILOT_GUIDE.md):
+CloudProof includes production-grade documentation, classroom guides, academic research artifacts, and commercialization strategies:
 
-* **Instructor Workflow**: Creating course sections, join codes, assigning missions, tracking common mistakes, and 1-click CSV gradebook export.
-* **Student Experience**: Incident Workbench, S3 Block Public Access & Policy editors, and the 4-tiered Virtual Hint Economy.
-* **Automated Verification**: Deterministic program rules with millisecond execution (Zero AI hallucination).
-* **AI Security Post-Mortem**: Grounded 6-part incident debriefs powered by Google Gemini (`gemini-3.8-flash`) with offline fallback.
-* **Dual-Mode Setup**: Mode A (Zero-cost simulation) vs Mode B (Real AWS cross-account STS `AssumeRole`).
+* 📘 **[College Pilot & Instructor Guide](docs/PILOT_GUIDE.md)**: Complete faculty workflow, student incident workbench, classroom roster analytics, 4-tier virtual hint economy, and 1-click RFC 4180 CSV gradebook exports.
+* 🚀 **[Production Deployment & Container Orchestration Guide](docs/DEPLOYMENT_GUIDE.md)**: Multi-profile Docker Compose architecture (`prod` with Nginx gateway & PostgreSQL, `sqlite` zero-cost lab mode), SSL hardening, and automated deployment scripts (`deploy.sh` & `deploy.ps1`).
+* 🎬 **[Turnkey Demo & Showcase Presentation Guide](docs/DEMO_GUIDE.md)**: 12-stage end-to-end incident demonstration script, turnkey database seed CLI (`scripts/seed_demo.py`), and investor pitch walkthrough.
+* 🎓 **[Empirical Research Evaluation & Statistical Analysis](docs/RESEARCH_EVALUATION.md)**: Publication-ready academic whitepaper evaluating RQ1–RQ4 across a controlled $N=20$ student trial, complete with inferential statistics ($t$-tests, $p < 0.0001$, Cohen's $d = -5.91$), Hake's normalized gain analysis ($g = 0.76$ High-Gain tier), and student error taxonomy.
+* 💼 **[Startup Validation, Unit Economics & Pitch Deck](docs/STARTUP_VALIDATION.md)**: Institutional B2B SaaS pricing model ($0 student fees), unit economics breakdown ($95.8% gross margin, $0.10 COGS/student-semester), competitive moat analysis, and 10-slide investor pitch deck outline.
+
 
