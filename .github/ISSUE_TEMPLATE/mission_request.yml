@@ -1,0 +1,45 @@
+name: New Incident Mission Proposal
+description: Propose a new educational cloud incident scenario for CloudProof
+title: "[MISSION]: "
+labels: ["mission-proposal", "curriculum"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Propose a new real-world cloud security incident for university student practice!
+
+  - type: input
+    id: mission_title
+    attributes:
+      label: Mission Title
+      placeholder: "e.g., Unencrypted RDS Database Exposure"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: cloud_provider
+    attributes:
+      label: Target Cloud Service
+      options:
+        - "Amazon Web Services (AWS)"
+        - "Google Cloud Platform (GCP)"
+        - "Microsoft Azure"
+        - "Multi-Cloud / Kubernetes"
+    validations:
+      required: true
+
+  - type: textarea
+    id: scenario
+    attributes:
+      label: Incident Scenario & Real-World Context
+      description: What is the simulated business context, threat vector, and vulnerable state?
+    validations:
+      required: true
+
+  - type: textarea
+    id: deterministic_rules
+    attributes:
+      label: Proposed Deterministic Rules
+      description: What exact programmatic checks should verify whether the student fixed the issue?
+    validations:
+      required: true
