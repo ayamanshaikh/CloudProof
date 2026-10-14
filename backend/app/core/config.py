@@ -1,5 +1,10 @@
+from pathlib import Path
 from typing import List
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Ensure default database path resolves to project root cloudproof.db regardless of CWD
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+DEFAULT_DB_URL = f"sqlite+aiosqlite:///{ (PROJECT_ROOT / 'cloudproof.db').as_posix() }"
 
 
 class Settings(BaseSettings):
@@ -9,10 +14,10 @@ class Settings(BaseSettings):
     # API
     BACKEND_HOST: str = "0.0.0.0"
     BACKEND_PORT: int = 8000
-    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
+    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001"
 
     # Database
-    DATABASE_URL: str = "sqlite+aiosqlite:///./cloudproof.db"
+    DATABASE_URL: str = DEFAULT_DB_URL
 
     # Security
     JWT_SECRET: str = "dev_secret_key_cloudproof_2026_change_in_production"
