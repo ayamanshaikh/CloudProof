@@ -1,0 +1,60 @@
+name: Bug Report
+description: File a reproducible bug report for CloudProof
+title: "[BUG]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug! Please ensure this is not a security vulnerability (see [SECURITY.md](https://github.com/ayamanshaikh/CloudProof/blob/master/SECURITY.md) for private vulnerability reporting).
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      options:
+        - "Backend REST API (FastAPI)"
+        - "Frontend UI (Next.js)"
+        - "Deterministic Rule Verification Engine"
+        - "AI Post-Mortem Generator"
+        - "Mission Pack 1 (S3 Public Bucket)"
+        - "Mission 2 (IAM Lambda Role)"
+        - "Mission 3 (Network Security Group)"
+        - "Real AWS Integration (STS AssumeRole)"
+        - "Docker / Compose Deployment"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Specific steps to reproduce the issue.
+      placeholder: |
+        1. Start mission '...'
+        2. Set configuration '...'
+        3. Click 'Verify'
+        4. See unexpected error '...'
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Info
+      description: OS, Python version, Node version, Docker status.
+      placeholder: |
+        - OS: Windows 11 / Ubuntu 22.04 / macOS
+        - Python Version: 3.11 / 3.13
+        - Node Version: 20.x
+        - Execution Mode: Simulation / Real AWS
+    validations:
+      required: false
