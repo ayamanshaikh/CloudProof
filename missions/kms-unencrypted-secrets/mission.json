@@ -1,0 +1,44 @@
+{
+  "id": "kms-unencrypted-secrets",
+  "title": "The Unencrypted Secrets Vault",
+  "category": "Cryptography & Data Protection",
+  "difficulty": "Intermediate",
+  "estimated_time_minutes": 25,
+  "base_score": 100,
+  "description": "An application secrets bucket stores sensitive API tokens and private keys without mandatory Server-Side Encryption (SSE-KMS), violating cryptographic compliance mandates.",
+  "scenario": "FinTech subsidiary 'VaultCorp' stores production JWT signing keys and customer database credentials in an S3 bucket. Security auditors discovered that the bucket does not enforce Server-Side Encryption with AWS Key Management Service Customer Managed Keys (SSE-KMS), allowing unencrypted writes and lacking automated key rotation.",
+  "initial_state": {
+    "ServerSideEncryptionConfiguration": {
+      "Rules": []
+    },
+    "BucketKeyEnabled": false,
+    "EnforceKMSSSEPolicy": false,
+    "KMSKeyRotationEnabled": false
+  },
+  "hints": [
+    {
+      "level": 1,
+      "token_cost": 1,
+      "penalty_percentage": 5,
+      "content": "In AWS S3, unencrypted object writes can be prevented at both the bucket configuration layer (Default Encryption) and via an explicit Deny bucket policy requiring the 's3:x-amz-server-side-encryption' header."
+    },
+    {
+      "level": 2,
+      "token_cost": 2,
+      "penalty_percentage": 10,
+      "content": "Check both the default encryption algorithm ('aws:kms') and ensure a Customer Managed Key (CMK) ARN is specified rather than the default managed key 'aws/s3'."
+    },
+    {
+      "level": 3,
+      "token_cost": 3,
+      "penalty_percentage": 15,
+      "content": "Enable S3 Bucket Keys to reduce AWS KMS request costs by up to 99%, and verify that automatic annual key rotation is enabled on the underlying KMS key."
+    },
+    {
+      "level": 4,
+      "token_cost": 4,
+      "penalty_percentage": 20,
+      "content": "Set SSEAlgorithm to 'aws:kms', provide KMSMasterKeyId 'arn:aws:kms:us-east-1:123456789012:key/vault-prod-key', set BucketKeyEnabled=True, EnforceKMSSSEPolicy=True, and KMSKeyRotationEnabled=True."
+    }
+  ]
+}
