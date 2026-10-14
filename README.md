@@ -2,7 +2,17 @@
 
 > **Educational Cloud Incident & Automated Infrastructure Verification Platform**
 
-CloudProof is a hands-on cloud learning and assessment platform where students learn cloud computing by solving realistic infrastructure incidents and receive automatic verification and intelligent guidance.
+[![CI - Backend](https://github.com/ayamanshaikh/CloudProof/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/ayamanshaikh/CloudProof/actions/workflows/backend-ci.yml)
+[![CI - Frontend](https://github.com/ayamanshaikh/CloudProof/actions/workflows/frontend-ci.yml/badge.svg)](https://github.com/ayamanshaikh/CloudProof/actions/workflows/frontend-ci.yml)
+[![Security - CodeQL](https://github.com/ayamanshaikh/CloudProof/actions/workflows/security-scan.yml/badge.svg)](https://github.com/ayamanshaikh/CloudProof/actions/workflows/security-scan.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python: 3.11+](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13-brightgreen.svg)](https://python.org)
+[![Next.js: 14](https://img.shields.io/badge/Next.js-14%20(App%20Router)-black.svg)](https://nextjs.org)
+[![Cloud Cost](https://img.shields.io/badge/Student%20Cost-%240.00%20Guaranteed-success.svg)](docs/PILOT_GUIDE.md)
+[![AI Grading Hallucinations](https://img.shields.io/badge/AI%20Grading%20Hallucination-0.0%25-success.svg)](docs/RESEARCH_EVALUATION.md)
+
+CloudProof is an educational flight simulator where students master cloud security by solving realistic infrastructure incidents, verified by a deterministic programmatic engine and debriefed through grounded AI post-mortems.
+
 
 ---
 
