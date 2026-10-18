@@ -55,3 +55,14 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* Print stylesheet */
+@media print {
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+  header, footer, nav {
+    display: none !important;
+  }
+}

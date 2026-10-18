@@ -34,8 +34,8 @@ export function MissionReportCard({
   ).toString(16).toUpperCase()}`;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-surface border border-border-subtle rounded-3xl max-w-2xl w-full p-6 sm:p-10 shadow-2xl relative max-h-[95vh] overflow-y-auto print:max-h-none print:shadow-none print:border-none print:p-0">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 print:static print:p-0 print:bg-transparent print:backdrop-blur-none">
+      <div className="bg-surface border border-border-subtle rounded-3xl max-w-2xl w-full p-6 sm:p-10 shadow-2xl relative max-h-[95vh] overflow-y-auto print:max-h-none print:shadow-none print:border-none print:p-0 print:overflow-visible print:w-full print:max-w-none">
         {/* Screen Action Bar (Hidden during printing) */}
         <div className="flex items-center justify-between pb-4 border-b border-border-subtle mb-6 print:hidden">
           <div className="flex items-center space-x-2 text-primary font-bold text-xs uppercase tracking-wider">
@@ -64,7 +64,7 @@ export function MissionReportCard({
         </div>
 
         {/* Printable Certificate Body */}
-        <div className="border border-border-subtle rounded-2xl p-6 sm:p-8 bg-canvas/40 space-y-6 print:border-2 print:border-black">
+        <div className="border border-border-subtle rounded-2xl p-6 sm:p-8 bg-canvas/40 space-y-6 print:border-2 print:border-black print:bg-white print:text-black">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border-subtle">
             <div>

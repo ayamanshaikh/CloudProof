@@ -120,7 +120,18 @@ export function Navbar() {
               </Link>
             ))}
           </nav>
-          <div className="pt-2 border-t border-border-subtle">
+          <div className="pt-2 border-t border-border-subtle space-y-2">
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setEvaluatorModalOpen(true);
+              }}
+              className="w-full inline-flex items-center justify-center space-x-1.5 px-4 py-2.5 text-sm font-semibold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 rounded-lg transition"
+            >
+              <Award className="h-4 w-4" />
+              <span>Evaluator 2-Min Tour</span>
+            </button>
             <Link
               href="/missions"
               onClick={() => setMobileMenuOpen(false)}
