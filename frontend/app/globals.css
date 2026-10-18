@@ -3,12 +3,55 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 15, 23, 42;
-  --background-rgb: 248, 250, 252;
+  --bg-canvas: #F6F4EF;
+  --bg-surface: #FFFFFF;
+  --bg-surface-secondary: #EFEBE3;
+  --border-subtle: #DDD8CC;
+  --text-main: #17212B;
+  --text-muted: #5E6B77;
+  --color-primary: #0F766E;
+  --color-primary-hover: #0D665F;
+  --color-accent: #E9A23B;
+  --color-success: #2F9E6B;
+  --color-warning: #D98A1F;
+  --color-danger: #D6523F;
+}
+
+.dark {
+  --bg-canvas: #0D1519;
+  --bg-surface: #131E24;
+  --bg-surface-secondary: #1A2830;
+  --border-subtle: #26363F;
+  --text-main: #EAF1F0;
+  --text-muted: #93A5AB;
+  --color-primary: #2DB3A5;
+  --color-primary-hover: #23978B;
+  --color-accent: #F0B35A;
+  --color-success: #46C58A;
+  --color-warning: #F0B35A;
+  --color-danger: #EF7A66;
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: rgb(var(--background-rgb));
+  background-color: var(--bg-canvas);
+  color: var(--text-main);
   min-height: 100vh;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+/* Accessible focus ring */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
