@@ -3,11 +3,13 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShieldCheck, Menu, X, ArrowRight } from "lucide-react";
+import { ShieldCheck, Menu, X, ArrowRight, Award } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
+import { EvaluatorGuideModal } from "./EvaluatorGuideModal";
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [evaluatorModalOpen, setEvaluatorModalOpen] = useState(false);
   const pathname = usePathname();
 
   const navLinks = [
@@ -55,8 +57,17 @@ export function Navbar() {
           ))}
         </nav>
 
-        {/* Desktop CTA & Theme */}
+        {/* Desktop CTA, Evaluator Tour & Theme */}
         <div className="hidden md:flex items-center space-x-3">
+          <button
+            type="button"
+            onClick={() => setEvaluatorModalOpen(true)}
+            className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 rounded-lg transition focus-visible:ring-2 focus-visible:ring-primary"
+            title="Open 2-minute tour for professors & evaluators"
+          >
+            <Award className="h-3.5 w-3.5" />
+            <span>Evaluator Tour</span>
+          </button>
           <ThemeToggle />
           <Link
             href="/missions"
@@ -69,6 +80,14 @@ export function Navbar() {
 
         {/* Mobile Hamburger & Theme */}
         <div className="flex md:hidden items-center space-x-2">
+          <button
+            type="button"
+            onClick={() => setEvaluatorModalOpen(true)}
+            className="p-2 rounded-lg text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 transition"
+            title="Evaluator Tour"
+          >
+            <Award className="h-4 w-4" />
+          </button>
           <ThemeToggle />
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -113,6 +132,12 @@ export function Navbar() {
           </div>
         </div>
       )}
+
+      {/* Evaluator Guide Modal */}
+      <EvaluatorGuideModal
+        isOpen={evaluatorModalOpen}
+        onClose={() => setEvaluatorModalOpen(false)}
+      />
     </header>
   );
 }
