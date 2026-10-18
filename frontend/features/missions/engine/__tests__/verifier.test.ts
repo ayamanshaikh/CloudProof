@@ -243,3 +243,220 @@ test('Diagnostic Hints: All missions define tiered hints with point penalties', 
     }
   }
 });
+
+test('Hardening - S3: Malformed JSON bucket policy does not crash and reports error', () => {
+  const brokenJsonConfig: S3MissionConfig = {
+    bucketName: 'test-bucket',
+    region: 'us-east-1',
+    blockPublicAccess: {
+      blockPublicAcls: true,
+      ignorePublicAcls: true,
+      blockPublicPolicy: true,
+      restrictPublicBuckets: true,
+    },
+    bucketAcl: 'private',
+    bucketPolicy: '{ invalid_json_syntax: true, ',
+    serverSideEncryption: true,
+    versioning: true,
+  };
+
+  const result = verifyS3LeakyBucket(brokenJsonConfig);
+  assert.equal(result.overallStatus, 'partial');
+  const policyRule = result.rules.find((r) => r.id === 's3-policy-check');
+  assert.ok(policyRule);
+  assert.equal(policyRule.status, 'fail');
+  assert.equal(policyRule.score, 0);
+  assert.match(policyRule.finding, /invalid syntax/i);
+});
+
+test('Hardening - S3: All 5 permutations of Block Public Access flags score accurately', () => {
+  const baseConfig: S3MissionConfig = {
+    bucketName: 'bpa-test',
+    region: 'us-east-1',
+    blockPublicAccess: {
+      blockPublicAcls: false,
+      ignorePublicAcls: false,
+      blockPublicPolicy: false,
+      restrictPublicBuckets: false,
+    },
+    bucketAcl: 'private',
+    bucketPolicy: '',
+    serverSideEncryption: true,
+    versioning: true,
+  };
+
+  // 0 of 4 -> 0 pts
+  let res = verifyS3LeakyBucket({ ...baseConfig });
+  assert.equal(res.rules.find((r) => r.id === 's3-bpa-check')?.score, 0);
+
+  // 1 of 4 -> round(1/4 * 35) = 9 pts
+  res = verifyS3LeakyBucket({
+    ...baseConfig,
+    blockPublicAccess: { ...baseConfig.blockPublicAccess, blockPublicAcls: true },
+  });
+  assert.equal(res.rules.find((r) => r.id === 's3-bpa-check')?.score, 9);
+
+  // 2 of 4 -> round(2/4 * 35) = 18 pts
+  res = verifyS3LeakyBucket({
+    ...baseConfig,
+    blockPublicAccess: { ...baseConfig.blockPublicAccess, blockPublicAcls: true, ignorePublicAcls: true },
+  });
+  assert.equal(res.rules.find((r) => r.id === 's3-bpa-check')?.score, 18);
+
+  // 3 of 4 -> round(3/4 * 35) = 26 pts
+  res = verifyS3LeakyBucket({
+    ...baseConfig,
+    blockPublicAccess: {
+      blockPublicAcls: true,
+      ignorePublicAcls: true,
+      blockPublicPolicy: true,
+      restrictPublicBuckets: false,
+    },
+  });
+  assert.equal(res.rules.find((r) => r.id === 's3-bpa-check')?.score, 26);
+
+  // 4 of 4 -> 35 pts
+  res = verifyS3LeakyBucket({
+    ...baseConfig,
+    blockPublicAccess: {
+      blockPublicAcls: true,
+      ignorePublicAcls: true,
+      blockPublicPolicy: true,
+      restrictPublicBuckets: true,
+    },
+  });
+  assert.equal(res.rules.find((r) => r.id === 's3-bpa-check')?.score, 35);
+});
+
+test('Hardening - Security Group: Catches port range enclosing port 22 and IPv6 ::/0', () => {
+  const rangeConfig: SecurityGroupMissionConfig = {
+    securityGroupId: 'sg-range-test',
+    securityGroupName: 'range-sg',
+    description: 'test',
+    vpcId: 'vpc-1',
+    inboundRules: [
+      {
+        id: 'r1',
+        protocol: 'tcp',
+        portRange: '20-25',
+        fromPort: 20,
+        toPort: 25,
+        source: '0.0.0.0/0',
+        description: 'broad admin range',
+      },
+      {
+        id: 'r2',
+        protocol: 'tcp',
+        portRange: '80',
+        fromPort: 80,
+        toPort: 80,
+        source: '0.0.0.0/0',
+        description: 'web',
+      },
+      {
+        id: 'r3',
+        protocol: 'tcp',
+        portRange: '443',
+        fromPort: 443,
+        toPort: 443,
+        source: '0.0.0.0/0',
+        description: 'web',
+      },
+    ],
+    outboundRules: [],
+  };
+
+  const res = verifySecurityGroupDoorOpen(rangeConfig);
+  const sshRule = res.rules.find((r) => r.id === 'sg-ssh-no-wildcard');
+  assert.ok(sshRule);
+  assert.equal(sshRule.status, 'fail');
+  assert.equal(sshRule.score, 0);
+
+  // Test IPv6 wildcard ::/0
+  const ipv6Config: SecurityGroupMissionConfig = {
+    ...rangeConfig,
+    inboundRules: [
+      {
+        id: 'r1-ipv6',
+        protocol: 'tcp',
+        portRange: '22',
+        fromPort: 22,
+        toPort: 22,
+        source: '::/0',
+        description: 'ipv6 wildcard ssh',
+      },
+      rangeConfig.inboundRules[1],
+      rangeConfig.inboundRules[2],
+    ],
+  };
+
+  const ipv6Res = verifySecurityGroupDoorOpen(ipv6Config);
+  const ipv6Rule = ipv6Res.rules.find((r) => r.id === 'sg-ssh-no-wildcard');
+  assert.ok(ipv6Rule);
+  assert.equal(ipv6Rule.status, 'fail');
+});
+
+test('Hardening - IAM: Catches malformed JSON and embedded wildcard actions', () => {
+  // Malformed JSON
+  const brokenIamConfig: IAMRoleMissionConfig = {
+    roleName: 'test-iam',
+    roleArn: 'arn:aws:iam::123:role/test-iam',
+    assumeRolePolicyDocument: '{}',
+    inlinePolicies: [
+      {
+        id: 'p-broken',
+        name: 'Broken',
+        policyDocument: '{{ not_json ',
+      },
+    ],
+  };
+
+  const res = verifyIAMTooMuchPower(brokenIamConfig);
+  assert.equal(res.overallStatus, 'failed');
+  assert.equal(res.rules.find((r) => r.id === 'iam-no-admin-action')?.status, 'fail');
+
+  // Embedded wildcard in Action array: ["s3:GetObject", "*"]
+  const arrayWildcardConfig: IAMRoleMissionConfig = {
+    roleName: 'test-iam',
+    roleArn: 'arn:aws:iam::123:role/test-iam',
+    assumeRolePolicyDocument: '{}',
+    inlinePolicies: [
+      {
+        id: 'p-array',
+        name: 'ArrayWildcard',
+        policyDocument: JSON.stringify({
+          Version: '2012-10-17',
+          Statement: [
+            {
+              Effect: 'Allow',
+              Action: ['s3:GetObject', '*'],
+              Resource: ['arn:aws:s3:::company-order-raw-events/*'],
+            },
+          ],
+        }),
+      },
+    ],
+  };
+
+  const arrayRes = verifyIAMTooMuchPower(arrayWildcardConfig);
+  assert.equal(arrayRes.rules.find((r) => r.id === 'iam-no-admin-action')?.status, 'fail');
+});
+
+test('Determinism Guarantee: 100 consecutive evaluations produce identical outputs', () => {
+  const missions = [s3LeakyBucketMission, sgDoorOpenMission, iamTooMuchPowerMission];
+
+  for (const m of missions) {
+    const baseline = verifyMissionState(m.id, m.recommendedState);
+
+    for (let i = 0; i < 100; i++) {
+      const run = verifyMissionState(m.id, m.recommendedState);
+      assert.equal(run.score, baseline.score);
+      assert.equal(run.overallStatus, baseline.overallStatus);
+      assert.equal(run.rules.length, baseline.rules.length);
+      for (let j = 0; j < run.rules.length; j++) {
+        assert.equal(run.rules[j].status, baseline.rules[j].status);
+        assert.equal(run.rules[j].score, baseline.rules[j].score);
+      }
+    }
+  }
+});

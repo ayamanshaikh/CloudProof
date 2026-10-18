@@ -219,8 +219,17 @@ export function S3Configurator({ config, onChange }: Props) {
         <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3.5">
           {/* Switch 1 */}
           <div
+            role="switch"
+            aria-checked={bpa.blockPublicAcls}
+            tabIndex={0}
             onClick={() => handleToggleBpa('blockPublicAcls')}
-            className={`p-3.5 rounded-xl border cursor-pointer transition flex items-start justify-between ${
+            onKeyDown={(e) => {
+              if (e.key === ' ' || e.key === 'Enter') {
+                e.preventDefault();
+                handleToggleBpa('blockPublicAcls');
+              }
+            }}
+            className={`p-3.5 rounded-xl border cursor-pointer transition flex items-start justify-between focus:outline-none focus:ring-2 focus:ring-primary/40 ${
               bpa.blockPublicAcls
                 ? 'bg-primary/5 border-primary/30'
                 : 'bg-surface-secondary/40 border-border-subtle hover:border-text-muted/30'
@@ -249,8 +258,17 @@ export function S3Configurator({ config, onChange }: Props) {
 
           {/* Switch 2 */}
           <div
+            role="switch"
+            aria-checked={bpa.ignorePublicAcls}
+            tabIndex={0}
             onClick={() => handleToggleBpa('ignorePublicAcls')}
-            className={`p-3.5 rounded-xl border cursor-pointer transition flex items-start justify-between ${
+            onKeyDown={(e) => {
+              if (e.key === ' ' || e.key === 'Enter') {
+                e.preventDefault();
+                handleToggleBpa('ignorePublicAcls');
+              }
+            }}
+            className={`p-3.5 rounded-xl border cursor-pointer transition flex items-start justify-between focus:outline-none focus:ring-2 focus:ring-primary/40 ${
               bpa.ignorePublicAcls
                 ? 'bg-primary/5 border-primary/30'
                 : 'bg-surface-secondary/40 border-border-subtle hover:border-text-muted/30'
@@ -279,8 +297,17 @@ export function S3Configurator({ config, onChange }: Props) {
 
           {/* Switch 3 */}
           <div
+            role="switch"
+            aria-checked={bpa.blockPublicPolicy}
+            tabIndex={0}
             onClick={() => handleToggleBpa('blockPublicPolicy')}
-            className={`p-3.5 rounded-xl border cursor-pointer transition flex items-start justify-between ${
+            onKeyDown={(e) => {
+              if (e.key === ' ' || e.key === 'Enter') {
+                e.preventDefault();
+                handleToggleBpa('blockPublicPolicy');
+              }
+            }}
+            className={`p-3.5 rounded-xl border cursor-pointer transition flex items-start justify-between focus:outline-none focus:ring-2 focus:ring-primary/40 ${
               bpa.blockPublicPolicy
                 ? 'bg-primary/5 border-primary/30'
                 : 'bg-surface-secondary/40 border-border-subtle hover:border-text-muted/30'
@@ -309,8 +336,17 @@ export function S3Configurator({ config, onChange }: Props) {
 
           {/* Switch 4 */}
           <div
+            role="switch"
+            aria-checked={bpa.restrictPublicBuckets}
+            tabIndex={0}
             onClick={() => handleToggleBpa('restrictPublicBuckets')}
-            className={`p-3.5 rounded-xl border cursor-pointer transition flex items-start justify-between ${
+            onKeyDown={(e) => {
+              if (e.key === ' ' || e.key === 'Enter') {
+                e.preventDefault();
+                handleToggleBpa('restrictPublicBuckets');
+              }
+            }}
+            className={`p-3.5 rounded-xl border cursor-pointer transition flex items-start justify-between focus:outline-none focus:ring-2 focus:ring-primary/40 ${
               bpa.restrictPublicBuckets
                 ? 'bg-primary/5 border-primary/30'
                 : 'bg-surface-secondary/40 border-border-subtle hover:border-text-muted/30'
@@ -408,11 +444,24 @@ export function S3Configurator({ config, onChange }: Props) {
           </p>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div
+          role="radiogroup"
+          aria-label="Bucket Access Control List"
+          className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3"
+        >
           {/* Private */}
           <div
+            role="radio"
+            aria-checked={config.bucketAcl === 'private'}
+            tabIndex={0}
             onClick={() => handleAclChange('private')}
-            className={`p-4 rounded-xl border cursor-pointer transition ${
+            onKeyDown={(e) => {
+              if (e.key === ' ' || e.key === 'Enter') {
+                e.preventDefault();
+                handleAclChange('private');
+              }
+            }}
+            className={`p-4 rounded-xl border cursor-pointer transition focus:outline-none focus:ring-2 focus:ring-primary/40 ${
               config.bucketAcl === 'private'
                 ? 'bg-success/5 border-success/40 ring-1 ring-success/20'
                 : 'bg-surface-secondary/40 border-border-subtle hover:border-text-muted/30'
@@ -435,8 +484,17 @@ export function S3Configurator({ config, onChange }: Props) {
 
           {/* Public Read */}
           <div
+            role="radio"
+            aria-checked={config.bucketAcl === 'public-read'}
+            tabIndex={0}
             onClick={() => handleAclChange('public-read')}
-            className={`p-4 rounded-xl border cursor-pointer transition ${
+            onKeyDown={(e) => {
+              if (e.key === ' ' || e.key === 'Enter') {
+                e.preventDefault();
+                handleAclChange('public-read');
+              }
+            }}
+            className={`p-4 rounded-xl border cursor-pointer transition focus:outline-none focus:ring-2 focus:ring-danger/40 ${
               config.bucketAcl === 'public-read'
                 ? 'bg-danger/5 border-danger/40 ring-1 ring-danger/20'
                 : 'bg-surface-secondary/40 border-border-subtle hover:border-text-muted/30'
@@ -459,8 +517,17 @@ export function S3Configurator({ config, onChange }: Props) {
 
           {/* Public Read Write */}
           <div
+            role="radio"
+            aria-checked={config.bucketAcl === 'public-read-write'}
+            tabIndex={0}
             onClick={() => handleAclChange('public-read-write')}
-            className={`p-4 rounded-xl border cursor-pointer transition ${
+            onKeyDown={(e) => {
+              if (e.key === ' ' || e.key === 'Enter') {
+                e.preventDefault();
+                handleAclChange('public-read-write');
+              }
+            }}
+            className={`p-4 rounded-xl border cursor-pointer transition focus:outline-none focus:ring-2 focus:ring-danger/40 ${
               config.bucketAcl === 'public-read-write'
                 ? 'bg-danger/10 border-danger ring-1 ring-danger'
                 : 'bg-surface-secondary/40 border-border-subtle hover:border-text-muted/30'
