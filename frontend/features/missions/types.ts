@@ -54,6 +54,7 @@ export interface SecurityGroupRule {
   fromPort: number;
   toPort: number;
   source: string; // CIDR (e.g., '0.0.0.0/0', '203.0.113.50/32')
+  destination?: string;
   description: string;
 }
 
