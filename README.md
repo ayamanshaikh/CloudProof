@@ -57,81 +57,38 @@ cloudproof/
 
 ---
 
-## Local Development Setup
+## Demo-First Quickstart (Zero Configuration)
+
+CloudProof runs out-of-the-box as a standalone, deterministic cloud incident laboratory.
+**No AWS accounts, no API keys, and no backend database are required for this demo.**
 
 ### Prerequisites
 * **Node.js:** v18+ or v20+
-* **Python:** 3.11+ (Python 3.13 supported)
-* **Git**
-* *(Optional)* Docker Desktop (for containerized PostgreSQL)
+* **npm:** v9+
 
----
-
-### 1. Environment Configuration
-
-Copy the example environment template:
+### Running the Interactive Web Demo (Windows & macOS)
 
 ```bash
-# Windows (PowerShell)
-Copy-Item .env.example .env
-
-# macOS / Linux
-cp .env.example .env
-```
-
----
-
-### 2. Backend Setup
-
-#### On Windows (PowerShell):
-```powershell
-cd backend
-py -3.13 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-```
-
-#### On macOS / Linux (Bash):
-```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-```
-
-Verify backend health: `http://localhost:8000/api/v1/health`
-
----
-
-### 3. Frontend Setup
-
-#### On Windows / macOS / Linux:
-```bash
+# 1. Navigate to the frontend directory
 cd frontend
+
+# 2. Install dependencies (first-time only)
 npm install
+
+# 3. Launch the development flight simulator
 npm run dev
 ```
 
-Open `http://localhost:3000` in your browser.
+Open **[http://localhost:3001](http://localhost:3001)** in your browser to start exploring missions!
 
----
-
-### 4. Running Automated Tests
+### Production Build & Verification
 
 ```bash
-# Run pytest from the repository root
-pytest tests/ -v
+cd frontend
+npm run typecheck   # Validate TypeScript types
+npm run build       # Build optimized production bundle
 ```
 
----
-
-### 5. Running with Docker Compose (Full Stack)
-
-```bash
-docker compose up --build
-```
 
 ---
 
