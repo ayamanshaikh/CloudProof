@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Mission,
   MissionState,
@@ -13,18 +13,17 @@ import { verifyMissionState } from '../engine/verifier';
 import { MissionHeader } from './MissionHeader';
 import { MissionBriefing } from './MissionBriefing';
 import { VerificationPanel } from './VerificationPanel';
+import { CliCommandPreview } from './CliCommandPreview';
 import { S3Configurator } from './configurators/S3Configurator';
 import { SecurityGroupConfigurator } from './configurators/SecurityGroupConfigurator';
 import { IAMRoleConfigurator } from './configurators/IAMRoleConfigurator';
 import {
   Terminal,
-  FileText,
+  Award,
   Play,
   RotateCcw,
   Sparkles,
-  Award,
-  CheckCircle2,
-  AlertTriangle,
+  Code2,
 } from 'lucide-react';
 
 interface Props {
@@ -32,6 +31,8 @@ interface Props {
 }
 
 export function MissionWorkbench({ mission }: Props) {
+  const storageKey = `cloudproof_session_${mission.id}`;
+
   const [currentState, setCurrentState] = useState<MissionState>(
     mission.initialState
   );
@@ -43,10 +44,48 @@ export function MissionWorkbench({ mission }: Props) {
     'configurator'
   );
 
+  // Restore saved session from localStorage on client mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.currentState) setCurrentState(parsed.currentState);
+        if (parsed.verificationResult) setVerificationResult(parsed.verificationResult);
+        if (parsed.unlockedHints) setUnlockedHints(parsed.unlockedHints);
+      }
+    } catch {
+      // Ignore storage errors if disabled
+    }
+  }, [storageKey]);
+
+  // Persist session to localStorage on changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          currentState,
+          verificationResult,
+          unlockedHints,
+        })
+      );
+    } catch {
+      // Ignore storage errors if disabled
+    }
+  }, [currentState, verificationResult, unlockedHints, storageKey]);
+
   const handleReset = () => {
-    setCurrentState(JSON.parse(JSON.stringify(mission.initialState)));
+    const initial = JSON.parse(JSON.stringify(mission.initialState));
+    setCurrentState(initial);
     setVerificationResult(null);
+    setUnlockedHints([]);
     setActiveTab('configurator');
+    try {
+      localStorage.removeItem(storageKey);
+    } catch {
+      // ignore
+    }
   };
 
   const handleApplyReferenceFix = () => {
@@ -60,11 +99,28 @@ export function MissionWorkbench({ mission }: Props) {
   const handleRunVerification = () => {
     setIsVerifying(true);
     setTimeout(() => {
-      const result = verifyMissionState(mission.id, currentState);
-      setVerificationResult(result);
+      const rawResult = verifyMissionState(mission.id, currentState);
+
+      // Compute hint penalty
+      const hintPenalty = unlockedHints.reduce((sum, hintId) => {
+        const hint = mission.hints.find((h) => h.id === hintId);
+        return sum + (hint ? hint.penaltyPoints : 0);
+      }, 0);
+
+      const finalScore = Math.max(0, rawResult.score - hintPenalty);
+      const adjustedResult: VerificationResult = {
+        ...rawResult,
+        score: finalScore,
+        summary:
+          hintPenalty > 0
+            ? `${rawResult.summary} (Diagnostic hint penalty: -${hintPenalty} pts applied).`
+            : rawResult.summary,
+      };
+
+      setVerificationResult(adjustedResult);
       setIsVerifying(false);
       setActiveTab('verification');
-    }, 200);
+    }, 250);
   };
 
   const handleUnlockHint = (hintId: number) => {
@@ -109,7 +165,7 @@ export function MissionWorkbench({ mission }: Props) {
       {/* Main Workspace Grid */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Left Column: Briefing & Architecture (5 of 12 cols) */}
+          {/* Left Column: Briefing, Telemetry, Architecture & Hints (5 of 12 cols) */}
           <div className="lg:col-span-5 space-y-6">
             <MissionBriefing
               mission={mission}
@@ -118,7 +174,7 @@ export function MissionWorkbench({ mission }: Props) {
             />
           </div>
 
-          {/* Right Column: Interactive Configurator or Verification (7 of 12 cols) */}
+          {/* Right Column: Interactive Configurator, CLI Preview, or Verification (7 of 12 cols) */}
           <div className="lg:col-span-7 space-y-6">
             {/* View Switcher Bar */}
             <div className="bg-surface border border-border-subtle rounded-2xl p-2 flex items-center justify-between shadow-sm">
@@ -172,7 +228,7 @@ export function MissionWorkbench({ mission }: Props) {
 
             {/* Viewport Content */}
             {activeTab === 'configurator' ? (
-              <div>
+              <div className="space-y-6">
                 {currentState.type === 's3' && (
                   <S3Configurator
                     config={currentState.config}
@@ -191,6 +247,9 @@ export function MissionWorkbench({ mission }: Props) {
                     onChange={handleIamChange}
                   />
                 )}
+
+                {/* Real-time AWS CLI Command Preview */}
+                <CliCommandPreview state={currentState} />
               </div>
             ) : (
               <VerificationPanel

@@ -180,4 +180,63 @@ export const sgDoorOpenMission: Mission = {
       'Use AWS Systems Manager (SSM) Session Manager instead of opening port 22 in security groups. Session Manager provides IAM-authenticated, auditable shell access without requiring public IP ingress or open bastions.',
     awsWellArchitectedPillar: 'Security — Infrastructure Protection & Network Security',
   },
+  investigation: {
+    alert: {
+      service: 'Amazon GuardDuty',
+      alertId: 'GD-EC2-SSH-BRUTEFORCE-092',
+      severity: 'high',
+      title: 'UnauthorizedAccess:EC2/SSHBruteForce',
+      description:
+        'EC2 instance attached to security group "sg-0e42a991f8c47b19" is experiencing high volume SSH brute force login attempts from known malicious IPs.',
+      timestamp: '2026-10-18T03:14:02Z',
+    },
+    telemetryLogs: [
+      {
+        id: 'log-sg-1',
+        source: 'CloudTrail',
+        timestamp: '2026-10-18T03:12:18Z',
+        event: 'AuthorizeSecurityGroupIngress',
+        rawJsonOrText: JSON.stringify(
+          {
+            eventSource: 'ec2.amazonaws.com',
+            eventName: 'AuthorizeSecurityGroupIngress',
+            userIdentity: {
+              type: 'IAMUser',
+              userName: 'devops-oncall-emergency',
+            },
+            requestParameters: {
+              groupId: 'sg-0e42a991f8c47b19',
+              ipPermissions: {
+                items: [
+                  {
+                    ipProtocol: 'tcp',
+                    fromPort: 22,
+                    toPort: 22,
+                    ipRanges: {
+                      items: [{ cidrIp: '0.0.0.0/0' }],
+                    },
+                  },
+                ],
+              },
+            },
+          },
+          null,
+          2
+        ),
+      },
+      {
+        id: 'log-sg-2',
+        source: 'VPC Flow Logs',
+        timestamp: '2026-10-18T03:13:50Z',
+        event: 'FLOW_LOG_INGRESS_SSH',
+        rawJsonOrText:
+          '2 123456789012 eni-0123456789abcdef0 198.51.100.89 10.0.1.45 49152 22 6 24 1440 1760757230 1760757290 ACCEPT OK',
+      },
+    ],
+    evidenceNotes: [
+      'CloudTrail confirms on-call operator added 0.0.0.0/0 on port 22 directly from home Wi-Fi.',
+      'VPC Flow logs demonstrate over 3,400 external TCP SYN connections ACCEPTED on port 22 in 15 minutes.',
+      'Amazon GuardDuty flagged active SSH credential-stuffing attacks from known attacker subnets.',
+    ],
+  },
 };

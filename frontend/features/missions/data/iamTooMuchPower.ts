@@ -184,4 +184,62 @@ export const iamTooMuchPowerMission: Mission = {
       'Enforce IAM Access Analyzer, establish automated CI/CD policy linters, and utilize AWS Service Control Policies (SCPs) and Permission Boundaries to forbid wildcard grants on application execution roles.',
     awsWellArchitectedPillar: 'Security — Identity and Access Management',
   },
+  investigation: {
+    alert: {
+      service: 'AWS IAM Access Analyzer',
+      alertId: 'IAA-ROLE-ADMIN-042',
+      severity: 'critical',
+      title: 'ExternalAccess.Role.WildcardAdministrator',
+      description:
+        'Role "BillingWorkerSyncRole" grants unrestricted administrative capabilities (Action: *, Resource: *) to execution principal lambda.amazonaws.com.',
+      timestamp: '2026-10-18T01:22:45Z',
+    },
+    telemetryLogs: [
+      {
+        id: 'log-iam-1',
+        source: 'CloudTrail',
+        timestamp: '2026-10-18T01:15:30Z',
+        event: 'PutRolePolicy',
+        rawJsonOrText: JSON.stringify(
+          {
+            eventSource: 'iam.amazonaws.com',
+            eventName: 'PutRolePolicy',
+            userIdentity: {
+              type: 'IAMUser',
+              userName: 'intern-dev-quickstart',
+            },
+            requestParameters: {
+              roleName: 'BillingWorkerSyncRole',
+              policyName: 'FullAdminBypass',
+              policyDocument: {
+                Version: '2012-10-17',
+                Statement: [
+                  {
+                    Effect: 'Allow',
+                    Action: '*',
+                    Resource: '*',
+                  },
+                ],
+              },
+            },
+          },
+          null,
+          2
+        ),
+      },
+      {
+        id: 'log-iam-2',
+        source: 'Lambda Logs',
+        timestamp: '2026-10-18T01:20:00Z',
+        event: 'CloudWatch_Execution_Trace',
+        rawJsonOrText:
+          '2026-10-18T01:20:00.112Z [INFO] Processing batch 8492. Executed AWS API: s3:GetObject(s3://company-order-raw-events/orders-20261018.csv)\n2026-10-18T01:20:00.450Z [INFO] Parsed 230 transactions. Executed AWS API: dynamodb:PutItem(table: BillingLedger, items: 230)\n2026-10-18T01:20:00.890Z [INFO] Batch sync complete in 778ms. 0 other AWS APIs called.',
+      },
+    ],
+    evidenceNotes: [
+      'CloudTrail logs show developer attached FullAdminBypass policy during sprint crunch.',
+      'Lambda runtime profiling proves the worker only requires s3:GetObject and dynamodb:PutItem.',
+      'Wildcard Resource: * grants dangerous potential blast radius over all company S3 buckets and databases.',
+    ],
+  },
 };

@@ -158,6 +158,29 @@ export interface EducationalDebrief {
   awsWellArchitectedPillar: string;
 }
 
+export interface CloudAlert {
+  service: string;
+  alertId: string;
+  severity: SeverityLevel;
+  title: string;
+  description: string;
+  timestamp: string;
+}
+
+export interface TelemetryLog {
+  id: string;
+  source: 'CloudTrail' | 'VPC Flow Logs' | 'S3 Access Logs' | 'Lambda Logs';
+  timestamp: string;
+  event: string;
+  rawJsonOrText: string;
+}
+
+export interface InvestigationData {
+  alert: CloudAlert;
+  telemetryLogs: TelemetryLog[];
+  evidenceNotes: string[];
+}
+
 export interface Mission {
   id: string;
   slug: string;
@@ -182,4 +205,5 @@ export interface Mission {
   initialState: MissionState;
   recommendedState: MissionState;
   educationalDebrief: EducationalDebrief;
+  investigation?: InvestigationData;
 }

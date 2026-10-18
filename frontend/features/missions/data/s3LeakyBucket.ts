@@ -148,4 +148,91 @@ export const s3LeakyBucketMission: Mission = {
       'Turn on S3 Block Public Access at the entire AWS Organization level using Service Control Policies (SCPs). Automate continuous drift detection with AWS Config rules (s3-bucket-public-read-prohibited) and AWS Security Hub.',
     awsWellArchitectedPillar: 'Security — Data Protection & Infrastructure Protection',
   },
+  investigation: {
+    alert: {
+      service: 'AWS Security Hub',
+      alertId: 'SH-S3-001-CRITICAL',
+      severity: 'critical',
+      title: '[S3.1] S3 Block Public Access setting should be enabled',
+      description:
+        'Bucket "fintech-invoice-records-2026" was detected with all 4 Block Public Access controls disabled and an active wildcard public read policy statement.',
+      timestamp: '2026-10-18T02:45:12Z',
+    },
+    telemetryLogs: [
+      {
+        id: 'log-s3-1',
+        source: 'CloudTrail',
+        timestamp: '2026-10-18T02:30:11Z',
+        event: 'PutBucketPolicy',
+        rawJsonOrText: JSON.stringify(
+          {
+            eventSource: 's3.amazonaws.com',
+            eventName: 'PutBucketPolicy',
+            userIdentity: {
+              type: 'AssumedRole',
+              principalId: 'AROAEXAMPLE:DeployBot',
+              arn: 'arn:aws:sts::123456789012:assumed-role/DeployBot/ci',
+            },
+            requestParameters: {
+              bucketName: 'fintech-invoice-records-2026',
+              bucketPolicy: {
+                Statement: [
+                  {
+                    Sid: 'AllowPublicInvoiceRead',
+                    Effect: 'Allow',
+                    Principal: '*',
+                    Action: 's3:GetObject',
+                  },
+                ],
+              },
+            },
+          },
+          null,
+          2
+        ),
+      },
+      {
+        id: 'log-s3-2',
+        source: 'S3 Access Logs',
+        timestamp: '2026-10-18T02:41:55Z',
+        event: 'REST.GET.OBJECT',
+        rawJsonOrText:
+          '198.51.100.77 - - [18/Oct/2026:02:41:55 +0000] "GET /invoices/2026/Q1/inv-10492.pdf HTTP/1.1" 200 42918 "-" "curl/7.88.1" - -',
+      },
+      {
+        id: 'log-s3-3',
+        source: 'CloudTrail',
+        timestamp: '2026-10-18T02:31:04Z',
+        event: 'PutBucketAcl',
+        rawJsonOrText: JSON.stringify(
+          {
+            eventSource: 's3.amazonaws.com',
+            eventName: 'PutBucketAcl',
+            requestParameters: {
+              bucketName: 'fintech-invoice-records-2026',
+              AccessControlPolicy: {
+                AccessControlList: {
+                  Grant: [
+                    {
+                      Grantee: {
+                        URI: 'http://acs.amazonaws.com/groups/global/AllUsers',
+                      },
+                      Permission: 'READ',
+                    },
+                  ],
+                },
+              },
+            },
+          },
+          null,
+          2
+        ),
+      },
+    ],
+    evidenceNotes: [
+      'Anonymous HTTP GET request succeeded without AWS SigV4 authentication headers.',
+      'S3 Access Logs confirm external IP 198.51.100.77 successfully retrieved customer invoice PDF inv-10492.pdf.',
+      'AWS Security Hub compliance score degraded by 15% due to critical storage misconfiguration.',
+    ],
+  },
 };

@@ -214,3 +214,32 @@ test('Unified Dispatcher: Throws on unknown mission ID or mismatched state', () 
     verifyMissionState('s3-leaky-bucket', sgDoorOpenMission.initialState);
   }, /Invalid state type/);
 });
+
+test('Investigation & Telemetry: All 3 missions define valid alerts, telemetry logs, and evidence', () => {
+  const missions = [s3LeakyBucketMission, sgDoorOpenMission, iamTooMuchPowerMission];
+
+  for (const m of missions) {
+    assert.ok(m.investigation, `Mission ${m.id} must define investigation telemetry`);
+    assert.ok(m.investigation.alert.alertId, `Mission ${m.id} alert must have alertId`);
+    assert.ok(m.investigation.alert.service, `Mission ${m.id} alert must specify AWS service`);
+    assert.ok(
+      ['critical', 'high', 'medium', 'low'].includes(m.investigation.alert.severity),
+      `Mission ${m.id} alert has valid severity`
+    );
+    assert.ok(m.investigation.telemetryLogs.length > 0, `Mission ${m.id} must have telemetry logs`);
+    assert.ok(m.investigation.evidenceNotes.length > 0, `Mission ${m.id} must have evidence notes`);
+  }
+});
+
+test('Diagnostic Hints: All missions define tiered hints with point penalties', () => {
+  const missions = [s3LeakyBucketMission, sgDoorOpenMission, iamTooMuchPowerMission];
+
+  for (const m of missions) {
+    assert.ok(m.hints.length >= 3, `Mission ${m.id} should have at least 3 hints`);
+    for (const h of m.hints) {
+      assert.ok(h.id > 0, 'Hint ID must be positive integer');
+      assert.ok(h.penaltyPoints > 0, 'Hint must carry non-zero penalty points');
+      assert.ok(h.text.length > 10, 'Hint text must be pedagogical and descriptive');
+    }
+  }
+});
