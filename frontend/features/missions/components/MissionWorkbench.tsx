@@ -17,6 +17,8 @@ import { CliCommandPreview } from './CliCommandPreview';
 import { S3Configurator } from './configurators/S3Configurator';
 import { SecurityGroupConfigurator } from './configurators/SecurityGroupConfigurator';
 import { IAMRoleConfigurator } from './configurators/IAMRoleConfigurator';
+import { MissionCompletionModal } from './MissionCompletionModal';
+import { MissionReportCard } from './MissionReportCard';
 import {
   Terminal,
   Award,
@@ -43,6 +45,8 @@ export function MissionWorkbench({ mission }: Props) {
   const [activeTab, setActiveTab] = useState<'configurator' | 'verification'>(
     'configurator'
   );
+  const [showCompletionModal, setShowCompletionModal] = useState<boolean>(false);
+  const [showReportCard, setShowReportCard] = useState<boolean>(false);
 
   // Restore saved session from localStorage on client mount
   useEffect(() => {
@@ -80,6 +84,8 @@ export function MissionWorkbench({ mission }: Props) {
     setCurrentState(initial);
     setVerificationResult(null);
     setUnlockedHints([]);
+    setShowCompletionModal(false);
+    setShowReportCard(false);
     setActiveTab('configurator');
     try {
       localStorage.removeItem(storageKey);
@@ -94,6 +100,9 @@ export function MissionWorkbench({ mission }: Props) {
     const result = verifyMissionState(mission.id, fixed);
     setVerificationResult(result);
     setActiveTab('verification');
+    if (result.overallStatus === 'passed') {
+      setShowCompletionModal(true);
+    }
   };
 
   const handleRunVerification = () => {
@@ -120,6 +129,10 @@ export function MissionWorkbench({ mission }: Props) {
       setVerificationResult(adjustedResult);
       setIsVerifying(false);
       setActiveTab('verification');
+
+      if (adjustedResult.overallStatus === 'passed') {
+        setShowCompletionModal(true);
+      }
     }, 250);
   };
 
@@ -258,11 +271,35 @@ export function MissionWorkbench({ mission }: Props) {
                 isVerifying={isVerifying}
                 onRunVerification={handleRunVerification}
                 onApplyReferenceFix={handleApplyReferenceFix}
+                onOpenReportCard={() => setShowReportCard(true)}
               />
             )}
           </div>
         </div>
       </main>
+
+      {/* Completion Modal */}
+      {showCompletionModal && verificationResult && (
+        <MissionCompletionModal
+          mission={mission}
+          verificationResult={verificationResult}
+          onClose={() => setShowCompletionModal(false)}
+          onReset={handleReset}
+          onOpenReportCard={() => {
+            setShowCompletionModal(false);
+            setShowReportCard(true);
+          }}
+        />
+      )}
+
+      {/* Printable Evaluation Report Card */}
+      {showReportCard && verificationResult && (
+        <MissionReportCard
+          mission={mission}
+          verificationResult={verificationResult}
+          onClose={() => setShowReportCard(false)}
+        />
+      )}
     </div>
   );
 }

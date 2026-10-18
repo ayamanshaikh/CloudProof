@@ -22,6 +22,7 @@ interface Props {
   isVerifying: boolean;
   onRunVerification: () => void;
   onApplyReferenceFix: () => void;
+  onOpenReportCard?: () => void;
 }
 
 export function VerificationPanel({
@@ -30,6 +31,7 @@ export function VerificationPanel({
   isVerifying,
   onRunVerification,
   onApplyReferenceFix,
+  onOpenReportCard,
 }: Props) {
   if (!verificationResult) {
     return (
@@ -127,6 +129,17 @@ export function VerificationPanel({
               <Play className="h-3.5 w-3.5 fill-current" />
               <span>{isVerifying ? 'Re-checking...' : 'Re-verify'}</span>
             </button>
+            {onOpenReportCard && (
+              <button
+                type="button"
+                onClick={onOpenReportCard}
+                className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-surface hover:bg-surface-secondary text-text-main border border-border-subtle transition"
+                title="View and print official evaluation report card"
+              >
+                <Award className="h-3.5 w-3.5 text-primary" />
+                <span>Report Card</span>
+              </button>
+            )}
             {overallStatus !== 'passed' && (
               <button
                 type="button"
