@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { UserRoleProvider } from "@/context/UserRoleContext";
 
 export const metadata: Metadata = {
   title: "CloudProof | Interactive Cloud Incident Learning",
@@ -13,8 +14,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="min-h-screen antialiased bg-slate-50 text-slate-900 transition-colors duration-200">
-        {children}
+      <body className="min-h-screen antialiased bg-canvas text-text-main transition-colors duration-200">
+        <UserRoleProvider>
+          {children}
+        </UserRoleProvider>
       </body>
     </html>
   );
