@@ -143,8 +143,8 @@ export function S3Configurator({ config, onChange }: Props) {
       <div className="bg-surface border border-border-subtle rounded-2xl p-5 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center space-x-3.5">
-            <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
-              <Database className="h-5 w-5" />
+            <div className="p-2.5 rounded-xl bg-primary/10 text-primary text-2xl">
+              🏦
             </div>
             <div>
               <div className="flex items-center space-x-2">
@@ -156,7 +156,7 @@ export function S3Configurator({ config, onChange }: Props) {
                 </span>
               </div>
               <span className="text-xs text-text-muted block mt-0.5">
-                Amazon Simple Storage Service (S3) &bull; General Purpose Bucket
+                Digital Storage Vault &bull; General Purpose Customer Invoice Bucket
               </span>
             </div>
           </div>
@@ -164,14 +164,22 @@ export function S3Configurator({ config, onChange }: Props) {
             {allBpaEnabled && config.bucketAcl === 'private' ? (
               <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-success/10 text-success border border-success/20">
                 <ShieldCheck className="h-3.5 w-3.5" />
-                <span>Bucket Sealed (Private)</span>
+                <span>Vault Sealed (Private)</span>
               </span>
             ) : (
               <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-danger/10 text-danger border border-danger/20">
                 <ShieldAlert className="h-3.5 w-3.5" />
-                <span>Public Access Vectors Active</span>
+                <span>Vault Door Unlocked & Leaking</span>
               </span>
             )}
+          </div>
+        </div>
+
+        {/* Visual Analogy Helper */}
+        <div className="mt-4 pt-3.5 border-t border-border-subtle flex items-start space-x-3 text-xs bg-canvas/60 p-3 rounded-xl">
+          <span className="text-lg">💡</span>
+          <div className="text-text-muted text-[11px] leading-relaxed">
+            <strong className="text-text-main">How to solve this:</strong> Engage all 4 master deadbolts below, set the access badge to <em>Private</em>, and ensure the written policy rulebook only permits the verified backend application.
           </div>
         </div>
       </div>
@@ -182,36 +190,36 @@ export function S3Configurator({ config, onChange }: Props) {
           <div>
             <div className="flex items-center space-x-2">
               <h3 className="text-base font-bold text-text-main">
-                Block Public Access (Bucket Settings)
+                The 4 Master Vault Deadbolts (Block Public Access)
               </h3>
               {allBpaEnabled ? (
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-success/10 text-success">
-                  All 4 On
+                  All 4 Locked
                 </span>
               ) : (
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-warning/10 text-warning">
-                  Incomplete Protection
+                  Vault Unlocked
                 </span>
               )}
             </div>
             <p className="text-xs text-text-muted mt-1 max-w-xl">
-              Centralized safeguards that override bucket policies and object ACLs to prevent public internet access.
+              Physical safeguards that physically lock the vault door to prevent unauthorized internet bots from downloading customer PDFs.
             </p>
           </div>
           <div className="flex items-center space-x-2 self-start sm:self-auto">
             <button
               type="button"
               onClick={() => handleToggleAllBpa(true)}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary hover:bg-primary hover:text-white transition"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-white hover:bg-primary-hover shadow-xs transition"
             >
-              Enable All 4
+              🔒 Lock All 4 Deadbolts
             </button>
             <button
               type="button"
               onClick={() => handleToggleAllBpa(false)}
               className="px-3 py-1.5 rounded-lg text-xs font-medium text-text-muted hover:bg-surface-secondary transition"
             >
-              Disable All
+              Unlock All
             </button>
           </div>
         </div>
@@ -236,11 +244,12 @@ export function S3Configurator({ config, onChange }: Props) {
             }`}
           >
             <div className="pr-2">
-              <span className="text-xs font-bold text-text-main block">
-                BlockPublicAcls
-              </span>
-              <span className="text-[11px] text-text-muted leading-relaxed block mt-0.5">
-                Blocks newly added public ACLs and puts bucket into a safe mode.
+              <div className="flex items-center space-x-1.5">
+                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-primary/10 text-primary">Deadbolt #1</span>
+                <span className="text-xs font-bold text-text-main">BlockPublicAcls</span>
+              </div>
+              <span className="text-[11px] text-text-muted leading-relaxed block mt-1">
+                Stops anyone from attaching a public sticky note to newly uploaded files.
               </span>
             </div>
             <div
@@ -275,11 +284,12 @@ export function S3Configurator({ config, onChange }: Props) {
             }`}
           >
             <div className="pr-2">
-              <span className="text-xs font-bold text-text-main block">
-                IgnorePublicAcls
-              </span>
-              <span className="text-[11px] text-text-muted leading-relaxed block mt-0.5">
-                Ignores all existing public ACLs on bucket and objects.
+              <div className="flex items-center space-x-1.5">
+                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-primary/10 text-primary">Deadbolt #2</span>
+                <span className="text-xs font-bold text-text-main">IgnorePublicAcls</span>
+              </div>
+              <span className="text-[11px] text-text-muted leading-relaxed block mt-1">
+                Ignores and invalidates any existing public access permissions on files.
               </span>
             </div>
             <div
@@ -314,11 +324,12 @@ export function S3Configurator({ config, onChange }: Props) {
             }`}
           >
             <div className="pr-2">
-              <span className="text-xs font-bold text-text-main block">
-                BlockPublicPolicy
-              </span>
-              <span className="text-[11px] text-text-muted leading-relaxed block mt-0.5">
-                Rejects new bucket policies that allow public access.
+              <div className="flex items-center space-x-1.5">
+                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-primary/10 text-primary">Deadbolt #3</span>
+                <span className="text-xs font-bold text-text-main">BlockPublicPolicy</span>
+              </div>
+              <span className="text-[11px] text-text-muted leading-relaxed block mt-1">
+                Rejects any bucket rulebook policy that allows public internet sharing.
               </span>
             </div>
             <div
@@ -353,11 +364,12 @@ export function S3Configurator({ config, onChange }: Props) {
             }`}
           >
             <div className="pr-2">
-              <span className="text-xs font-bold text-text-main block">
-                RestrictPublicBuckets
-              </span>
-              <span className="text-[11px] text-text-muted leading-relaxed block mt-0.5">
-                Restricts access to only AWS services and authorized users.
+              <div className="flex items-center space-x-1.5">
+                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-primary/10 text-primary">Deadbolt #4</span>
+                <span className="text-xs font-bold text-text-main">RestrictPublicBuckets</span>
+              </div>
+              <span className="text-[11px] text-text-muted leading-relaxed block mt-1">
+                Restricts bucket access strictly to verified internal service identities.
               </span>
             </div>
             <div

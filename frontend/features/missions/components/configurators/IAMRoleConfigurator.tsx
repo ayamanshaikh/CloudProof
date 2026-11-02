@@ -158,8 +158,8 @@ export function IAMRoleConfigurator({ config, onChange }: Props) {
       <div className="bg-surface border border-border-subtle rounded-2xl p-5 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center space-x-3.5">
-            <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
-              <Key className="h-5 w-5" />
+            <div className="p-2.5 rounded-xl bg-primary/10 text-primary text-2xl">
+              🪪
             </div>
             <div>
               <div className="flex items-center space-x-2">
@@ -167,7 +167,7 @@ export function IAMRoleConfigurator({ config, onChange }: Props) {
                   {config.roleName}
                 </span>
                 <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-surface-secondary text-text-muted border border-border-subtle">
-                  AWS IAM Role
+                  Digital Employee Keycard
                 </span>
               </div>
               <span className="text-xs text-text-muted block mt-0.5 font-mono">
@@ -179,14 +179,22 @@ export function IAMRoleConfigurator({ config, onChange }: Props) {
             {!hasWildcardAction && !hasWildcardResource ? (
               <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-success/10 text-success border border-success/20">
                 <ShieldCheck className="h-3.5 w-3.5" />
-                <span>Least Privilege Enforced</span>
+                <span>Least-Privilege Keycard (Safe)</span>
               </span>
             ) : (
               <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-danger/10 text-danger border border-danger/20">
                 <ShieldAlert className="h-3.5 w-3.5" />
-                <span>Wildcard Permissions Active</span>
+                <span>🚨 Master Skeleton Key Active!</span>
               </span>
             )}
+          </div>
+        </div>
+
+        {/* Visual Analogy Helper */}
+        <div className="mt-4 pt-3.5 border-t border-border-subtle flex items-start space-x-3 text-xs bg-canvas/60 p-3 rounded-xl">
+          <span className="text-lg">💡</span>
+          <div className="text-text-muted text-[11px] leading-relaxed">
+            <strong className="text-text-main">How to solve this:</strong> Replace the dangerous wildcard Master Skeleton Key (<code className="text-danger font-bold">&quot;Action&quot;: &quot;*&quot;</code>) with the exact operations the invoice program needs: <code className="text-success font-bold">s3:GetObject</code> and <code className="text-success font-bold">s3:PutObject</code>.
           </div>
         </div>
       </div>
@@ -234,7 +242,7 @@ export function IAMRoleConfigurator({ config, onChange }: Props) {
               className="inline-flex items-center space-x-1 px-3 py-1 rounded-md text-xs font-semibold bg-success/10 text-success hover:bg-success hover:text-white transition"
             >
               <Sparkles className="h-3.5 w-3.5" />
-              <span>Apply Least-Privilege Scoped Policy</span>
+              <span>🛡️ Give Invoice-Only Keycard (Recommended)</span>
             </button>
             <button
               type="button"
@@ -248,7 +256,7 @@ export function IAMRoleConfigurator({ config, onChange }: Props) {
               onClick={() => handleApplyPreset('wildcard')}
               className="px-2.5 py-1 rounded-md text-xs font-medium text-danger hover:bg-danger/10 transition"
             >
-              Reset to Wildcard Admin
+              🚨 Give Master Key (Dangerous)
             </button>
           </div>
         </div>

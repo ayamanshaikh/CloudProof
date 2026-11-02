@@ -145,8 +145,8 @@ export function SecurityGroupConfigurator({ config, onChange }: Props) {
       <div className="bg-surface border border-border-subtle rounded-2xl p-5 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center space-x-3.5">
-            <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
-              <Network className="h-5 w-5" />
+            <div className="p-2.5 rounded-xl bg-primary/10 text-primary text-2xl">
+              🏰
             </div>
             <div>
               <div className="flex items-center space-x-2">
@@ -158,7 +158,7 @@ export function SecurityGroupConfigurator({ config, onChange }: Props) {
                 </span>
               </div>
               <span className="text-xs text-text-muted block mt-0.5">
-                VPC ID: <code className="font-mono">{config.vpcId}</code> &bull; Stateful Virtual Firewall
+                The Network Gatekeeper &bull; Virtual Campus Firewall Guard
               </span>
             </div>
           </div>
@@ -166,14 +166,22 @@ export function SecurityGroupConfigurator({ config, onChange }: Props) {
             {!hasWildcardSsh ? (
               <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-success/10 text-success border border-success/20">
                 <ShieldCheck className="h-3.5 w-3.5" />
-                <span>SSH Ingress Secured</span>
+                <span>Gate Secured (Campus IP Only)</span>
               </span>
             ) : (
               <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-danger/10 text-danger border border-danger/20">
                 <ShieldAlert className="h-3.5 w-3.5" />
-                <span>Port 22 Open to 0.0.0.0/0</span>
+                <span>🚨 Admin Door Open to All 4.3B Users</span>
               </span>
             )}
+          </div>
+        </div>
+
+        {/* Visual Analogy Helper */}
+        <div className="mt-4 pt-3.5 border-t border-border-subtle flex items-start space-x-3 text-xs bg-canvas/60 p-3 rounded-xl">
+          <span className="text-lg">💡</span>
+          <div className="text-text-muted text-[11px] leading-relaxed">
+            <strong className="text-text-main">How to solve this:</strong> Change the source on Port 22 (SSH) from <code className="text-danger font-bold">0.0.0.0/0</code> (entire world) to your trusted campus subnet <code className="text-success font-bold">198.51.100.0/24</code> or <code className="text-primary font-bold">203.0.113.50/32</code>. Don&apos;t close Ports 80 and 443!
           </div>
         </div>
       </div>
@@ -264,13 +272,17 @@ export function SecurityGroupConfigurator({ config, onChange }: Props) {
                       }`}
                     >
                       <td className="py-3 px-3 font-medium text-text-main">
-                        {rule.portRange === '22'
-                          ? 'SSH'
-                          : rule.portRange === '80'
-                          ? 'HTTP'
-                          : rule.portRange === '443'
-                          ? 'HTTPS'
-                          : 'Custom TCP'}
+                        <div className="flex items-center space-x-1.5">
+                          <span>
+                            {rule.portRange === '22'
+                              ? '🚪 SSH (Admin Backdoor)'
+                              : rule.portRange === '80'
+                              ? '🌐 HTTP (Web Visitors)'
+                              : rule.portRange === '443'
+                              ? '🔒 HTTPS (Secure Web)'
+                              : 'Custom Port'}
+                          </span>
+                        </div>
                       </td>
                       <td className="py-3 px-3 uppercase font-mono text-text-muted">
                         {rule.protocol}
@@ -279,20 +291,32 @@ export function SecurityGroupConfigurator({ config, onChange }: Props) {
                         {rule.portRange}
                       </td>
                       <td className="py-3 px-3">
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="text"
-                            value={rule.source}
-                            onChange={(e) => handleUpdateSource(rule.id, e.target.value)}
-                            className={`font-mono text-xs px-2.5 py-1 rounded-md border text-text-main bg-canvas transition focus:outline-none focus:ring-1 ${
-                              isDangerous
-                                ? 'border-danger/60 focus:ring-danger text-danger font-bold'
-                                : 'border-border-subtle focus:ring-primary'
-                            }`}
-                          />
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="text"
+                              value={rule.source}
+                              onChange={(e) => handleUpdateSource(rule.id, e.target.value)}
+                              className={`font-mono text-xs px-2.5 py-1 rounded-md border text-text-main bg-canvas transition focus:outline-none focus:ring-1 ${
+                                isDangerous
+                                  ? 'border-danger/60 focus:ring-danger text-danger font-bold'
+                                  : 'border-border-subtle focus:ring-primary'
+                              }`}
+                            />
+                            {isDangerous && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateSource(rule.id, '198.51.100.0/24')}
+                                className="px-2 py-0.5 rounded text-[10px] font-bold bg-success/10 text-success hover:bg-success hover:text-white border border-success/30 transition shrink-0"
+                                title="Click to apply College Campus Network"
+                              >
+                                🏫 Fix to Campus IP
+                              </button>
+                            )}
+                          </div>
                           {isDangerous && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-danger/10 text-danger border border-danger/20 shrink-0">
-                              WILDCARD
+                            <span className="text-[10px] text-danger font-semibold block mt-1">
+                              🚨 0.0.0.0/0 allows all 4.3 billion internet devices!
                             </span>
                           )}
                         </div>

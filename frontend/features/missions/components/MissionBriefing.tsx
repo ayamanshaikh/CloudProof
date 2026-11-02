@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import { Mission } from '../types';
 import { InvestigationInspector } from './InvestigationInspector';
+import { SimpleEnglishGuide } from './SimpleEnglishGuide';
+import { MISSION_METAPHORS } from '../data/metaphors';
 import {
   FileText,
   AlertCircle,
@@ -12,6 +14,7 @@ import {
   Tag,
   Eye,
   FileSearch,
+  Sparkles,
 } from 'lucide-react';
 
 interface Props {
@@ -25,42 +28,60 @@ export function MissionBriefing({
   unlockedHints,
   onUnlockHint,
 }: Props) {
-  const [briefingTab, setBriefingTab] = useState<'brief' | 'telemetry'>('brief');
+  const metaphor = MISSION_METAPHORS[mission.id];
+  const [briefingTab, setBriefingTab] = useState<'simple' | 'brief' | 'telemetry'>('simple');
 
   return (
     <div className="space-y-5">
       {/* Sub-tab navigation */}
       <div className="bg-surface border border-border-subtle rounded-2xl p-1.5 flex items-center space-x-1 shadow-sm">
+        {metaphor && (
+          <button
+            type="button"
+            onClick={() => setBriefingTab('simple')}
+            className={`flex-1 inline-flex items-center justify-center space-x-1.5 py-2 px-3 rounded-xl text-xs font-bold transition ${
+              briefingTab === 'simple'
+                ? 'bg-primary text-white shadow-sm'
+                : 'text-text-muted hover:text-text-main hover:bg-surface-secondary'
+            }`}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            <span>In Simple English</span>
+          </button>
+        )}
+
         <button
           type="button"
           onClick={() => setBriefingTab('brief')}
-          className={`flex-1 inline-flex items-center justify-center space-x-2 py-2 px-3 rounded-xl text-xs font-bold transition ${
+          className={`flex-1 inline-flex items-center justify-center space-x-1.5 py-2 px-3 rounded-xl text-xs font-bold transition ${
             briefingTab === 'brief'
               ? 'bg-primary text-white shadow-sm'
               : 'text-text-muted hover:text-text-main hover:bg-surface-secondary'
           }`}
         >
           <FileText className="h-3.5 w-3.5" />
-          <span>Incident Brief & Goals</span>
+          <span>Incident Brief</span>
         </button>
 
         {mission.investigation && (
           <button
             type="button"
             onClick={() => setBriefingTab('telemetry')}
-            className={`flex-1 inline-flex items-center justify-center space-x-2 py-2 px-3 rounded-xl text-xs font-bold transition ${
+            className={`flex-1 inline-flex items-center justify-center space-x-1.5 py-2 px-3 rounded-xl text-xs font-bold transition ${
               briefingTab === 'telemetry'
                 ? 'bg-primary text-white shadow-sm'
                 : 'text-text-muted hover:text-text-main hover:bg-surface-secondary'
             }`}
           >
             <FileSearch className="h-3.5 w-3.5" />
-            <span>Telemetry & Logs</span>
+            <span>Logs & Telemetry</span>
           </button>
         )}
       </div>
 
-      {briefingTab === 'telemetry' && mission.investigation ? (
+      {briefingTab === 'simple' && metaphor ? (
+        <SimpleEnglishGuide guide={metaphor} />
+      ) : briefingTab === 'telemetry' && mission.investigation ? (
         <InvestigationInspector investigation={mission.investigation} />
       ) : (
         <>
@@ -176,71 +197,71 @@ export function MissionBriefing({
               ))}
             </div>
           </div>
-
-          {/* Progressive Hints Drawer */}
-          <div className="bg-surface border border-border-subtle rounded-2xl p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center space-x-2 text-accent">
-                <Lightbulb className="h-4 w-4" />
-                <h2 className="text-sm font-bold uppercase tracking-wider">
-                  Diagnostic Hints ({unlockedHints.length}/{mission.hints.length} Unlocked)
-                </h2>
-              </div>
-              <span className="text-[11px] text-text-muted">
-                Penalty subtracted from overall score
-              </span>
-            </div>
-
-            <div className="space-y-2.5">
-              {mission.hints.map((hint) => {
-                const isUnlocked = unlockedHints.includes(hint.id);
-                return (
-                  <div
-                    key={hint.id}
-                    className={`p-3.5 rounded-xl border transition ${
-                      isUnlocked
-                        ? 'bg-accent/5 border-accent/30'
-                        : 'bg-surface-secondary/40 border-border-subtle'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs font-bold text-text-main">
-                          Hint #{hint.id}: {hint.title}
-                        </span>
-                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-warning/10 text-warning">
-                          -{hint.penaltyPoints} pts
-                        </span>
-                      </div>
-
-                      {!isUnlocked ? (
-                        <button
-                          type="button"
-                          onClick={() => onUnlockHint(hint.id)}
-                          className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-accent/10 text-accent hover:bg-accent hover:text-white transition"
-                        >
-                          <Eye className="h-3 w-3" />
-                          <span>Reveal Hint</span>
-                        </button>
-                      ) : (
-                        <span className="text-[10px] font-semibold text-accent uppercase tracking-wider">
-                          Unlocked
-                        </span>
-                      )}
-                    </div>
-
-                    {isUnlocked && (
-                      <p className="text-xs text-text-muted leading-relaxed mt-2 pt-2 border-t border-accent/20">
-                        {hint.text}
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
         </>
       )}
+
+      {/* Progressive Hints Drawer (Available across all tabs) */}
+      <div className="bg-surface border border-border-subtle rounded-2xl p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center space-x-2 text-accent">
+            <Lightbulb className="h-4 w-4" />
+            <h2 className="text-sm font-bold uppercase tracking-wider">
+              Diagnostic Hints ({unlockedHints.length}/{mission.hints.length} Unlocked)
+            </h2>
+          </div>
+          <span className="text-[11px] text-text-muted">
+            Penalty subtracted from overall score
+          </span>
+        </div>
+
+        <div className="space-y-2.5">
+          {mission.hints.map((hint) => {
+            const isUnlocked = unlockedHints.includes(hint.id);
+            return (
+              <div
+                key={hint.id}
+                className={`p-3.5 rounded-xl border transition ${
+                  isUnlocked
+                    ? 'bg-accent/5 border-accent/30'
+                    : 'bg-surface-secondary/40 border-border-subtle'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs font-bold text-text-main">
+                      Hint #{hint.id}: {hint.title}
+                    </span>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-warning/10 text-warning">
+                      -{hint.penaltyPoints} pts
+                    </span>
+                  </div>
+
+                  {!isUnlocked ? (
+                    <button
+                      type="button"
+                      onClick={() => onUnlockHint(hint.id)}
+                      className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-accent/10 text-accent hover:bg-accent hover:text-white transition"
+                    >
+                      <Eye className="h-3 w-3" />
+                      <span>Reveal Hint</span>
+                    </button>
+                  ) : (
+                    <span className="text-[10px] font-semibold text-accent uppercase tracking-wider">
+                      Unlocked
+                    </span>
+                  )}
+                </div>
+
+                {isUnlocked && (
+                  <p className="text-xs text-text-muted leading-relaxed mt-2 pt-2 border-t border-accent/20">
+                    {hint.text}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
