@@ -18,6 +18,7 @@ import { S3Configurator } from './configurators/S3Configurator';
 import { SecurityGroupConfigurator } from './configurators/SecurityGroupConfigurator';
 import { IAMRoleConfigurator } from './configurators/IAMRoleConfigurator';
 import { VisualSimulationCanvas } from './simulation/VisualSimulationCanvas';
+import { GuidedMissionStepper } from './GuidedMissionStepper';
 import { MissionCompletionModal } from './MissionCompletionModal';
 import { MissionReportCard } from './MissionReportCard';
 import {
@@ -190,6 +191,17 @@ export function MissionWorkbench({ mission }: Props) {
 
           {/* Right Column: Interactive Configurator, CLI Preview, or Verification (7 of 12 cols) */}
           <div className="lg:col-span-7 space-y-6">
+            {/* Step-by-Step Guided Walkthrough (Tinkercad Stepper) */}
+            <GuidedMissionStepper
+              mission={mission}
+              currentState={currentState}
+              activeTab={activeTab}
+              onSelectTab={setActiveTab}
+              onApplyFix={handleApplyReferenceFix}
+              onRunVerification={handleRunVerification}
+              verificationResult={verificationResult}
+            />
+
             {/* View Switcher Bar */}
             <div className="bg-surface border border-border-subtle rounded-2xl p-2 flex items-center justify-between shadow-sm">
               <div className="flex items-center space-x-1 w-full sm:w-auto">

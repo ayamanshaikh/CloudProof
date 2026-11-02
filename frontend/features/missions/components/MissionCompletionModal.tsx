@@ -93,6 +93,34 @@ export function MissionCompletionModal({
           </div>
         </div>
 
+        {/* Digital Mastery Badge (Tinkercad Milestone) */}
+        <div className="mt-5 p-4 rounded-2xl bg-gradient-to-r from-primary/10 via-accent/10 to-success/10 border-2 border-primary/30 flex items-center space-x-3.5">
+          <div className="w-12 h-12 rounded-2xl bg-primary text-white flex items-center justify-center text-2xl shrink-0 shadow-md">
+            {mission.id === 's3-leaky-bucket' ? '🏦' : mission.id === 'sg-door-open' ? '🏰' : '🪪'}
+          </div>
+          <div className="flex-1 min-w-0">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-primary block">
+              Skill Badge Unlocked
+            </span>
+            <span className="text-sm font-black text-text-main block truncate">
+              {mission.id === 's3-leaky-bucket'
+                ? 'Certified S3 Vault Architect'
+                : mission.id === 'sg-door-open'
+                ? 'Certified Campus Firewall Gatekeeper'
+                : 'Certified Least-Privilege IAM Specialist'}
+            </span>
+            <span className="text-[11px] text-text-muted block mt-0.5">
+              Grade automatically synced to Teacher Classroom Roster.
+            </span>
+          </div>
+          <Link
+            href="/teacher"
+            className="hidden sm:inline-flex px-3 py-1.5 rounded-xl text-xs font-bold bg-primary text-white hover:bg-primary-hover shadow-xs transition shrink-0"
+          >
+            View in Gradebook &rarr;
+          </Link>
+        </div>
+
         {/* Educational Debrief Highlight */}
         <div className="mt-5 p-4 rounded-xl bg-canvas border border-border-subtle text-xs space-y-2">
           <div className="flex items-center space-x-1.5 text-primary font-bold">
