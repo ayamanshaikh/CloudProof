@@ -17,6 +17,7 @@ import { CliCommandPreview } from './CliCommandPreview';
 import { S3Configurator } from './configurators/S3Configurator';
 import { SecurityGroupConfigurator } from './configurators/SecurityGroupConfigurator';
 import { IAMRoleConfigurator } from './configurators/IAMRoleConfigurator';
+import { VisualSimulationCanvas } from './simulation/VisualSimulationCanvas';
 import { MissionCompletionModal } from './MissionCompletionModal';
 import { MissionReportCard } from './MissionReportCard';
 import {
@@ -42,8 +43,8 @@ export function MissionWorkbench({ mission }: Props) {
     useState<VerificationResult | null>(null);
   const [isVerifying, setIsVerifying] = useState<boolean>(false);
   const [unlockedHints, setUnlockedHints] = useState<number[]>([]);
-  const [activeTab, setActiveTab] = useState<'configurator' | 'verification'>(
-    'configurator'
+  const [activeTab, setActiveTab] = useState<'simulation' | 'configurator' | 'verification'>(
+    'simulation'
   );
   const [showCompletionModal, setShowCompletionModal] = useState<boolean>(false);
   const [showReportCard, setShowReportCard] = useState<boolean>(false);
@@ -194,29 +195,42 @@ export function MissionWorkbench({ mission }: Props) {
               <div className="flex items-center space-x-1 w-full sm:w-auto">
                 <button
                   type="button"
+                  onClick={() => setActiveTab('simulation')}
+                  className={`flex-1 sm:flex-none inline-flex items-center justify-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition ${
+                    activeTab === 'simulation'
+                      ? 'bg-primary text-white shadow-sm'
+                      : 'text-text-muted hover:text-text-main hover:bg-surface-secondary'
+                  }`}
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>Visual Circuit (Tinkercad)</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => setActiveTab('configurator')}
-                  className={`flex-1 sm:flex-none inline-flex items-center justify-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+                  className={`flex-1 sm:flex-none inline-flex items-center justify-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition ${
                     activeTab === 'configurator'
                       ? 'bg-primary text-white shadow-sm'
                       : 'text-text-muted hover:text-text-main hover:bg-surface-secondary'
                   }`}
                 >
-                  <Terminal className="h-4 w-4" />
-                  <span>Cloud Configurator</span>
+                  <Terminal className="h-3.5 w-3.5" />
+                  <span>Cloud Controls</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setActiveTab('verification')}
-                  className={`flex-1 sm:flex-none inline-flex items-center justify-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+                  className={`flex-1 sm:flex-none inline-flex items-center justify-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition ${
                     activeTab === 'verification'
                       ? 'bg-primary text-white shadow-sm'
                       : 'text-text-muted hover:text-text-main hover:bg-surface-secondary'
                   }`}
                 >
-                  <Award className="h-4 w-4" />
+                  <Award className="h-3.5 w-3.5" />
                   <span>
-                    Verification Check
+                    Verification
                     {verificationResult && (
                       <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 text-white font-mono">
                         {verificationResult.score}/100
@@ -240,7 +254,30 @@ export function MissionWorkbench({ mission }: Props) {
             </div>
 
             {/* Viewport Content */}
-            {activeTab === 'configurator' ? (
+            {activeTab === 'simulation' ? (
+              <div className="space-y-6">
+                <VisualSimulationCanvas
+                  mission={mission}
+                  currentState={currentState}
+                  onApplyReferenceFix={handleApplyReferenceFix}
+                />
+                <div className="p-4 rounded-2xl bg-surface border border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div>
+                    <span className="font-bold text-text-main block">Ready to experiment with the controls?</span>
+                    <span className="text-text-muted text-[11px]">
+                      Switch to the Cloud Controls tab to toggle deadbolts, adjust firewall gates, and scope IAM keycards.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('configurator')}
+                    className="px-4 py-2 rounded-xl bg-primary text-white font-bold hover:bg-primary-hover shrink-0 transition"
+                  >
+                    Open Cloud Controls &rarr;
+                  </button>
+                </div>
+              </div>
+            ) : activeTab === 'configurator' ? (
               <div className="space-y-6">
                 {currentState.type === 's3' && (
                   <S3Configurator
